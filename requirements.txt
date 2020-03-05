@@ -3,6 +3,9 @@
 # spiders
 scrapy >= 1.8.0
 sqlalchemy >= 1.3.13
+optenum == 1.1.7
+python-dateutil == 2.8.1
+plugin-base == 1.0.0
 
 #psycopg2   #renamed to psycopg2-binary
 # window (py3.4):

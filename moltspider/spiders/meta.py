@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 from dateutil.parser import parse as dt_parse
 import scrapy
 import logging
-from ..consts import SiteSchemaKey as SSK, SchemaOtherKey as SOK, Spiders, Schemas, Args, ArticleWeight, ArticleStatus
-from ..db import Database, select, and_
-from ..parser import SiteSchemas, iter_items, urljoin, arg_get_site_ids, url_to_relative, args_get_article_ids
+from ..consts import SiteSchemaKey as SSK, Spiders, Schemas, ArticleWeight
+from ..db import select
+from ..parser import iter_items, urljoin, url_to_relative
 from scrapy.utils.project import get_project_settings
 from .base import MoltSpiderBase
 
@@ -20,16 +20,10 @@ log = logging.getLogger(__name__)
 
 class MetaSpider(MoltSpiderBase):
     name = Spiders.META
-    allowed_domains = []
-    start_urls = []
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.site_schemas = SiteSchemas
-        self.site_ids = arg_get_site_ids(**kwargs)
-        self.article_ids = args_get_article_ids(**kwargs)
-        self.nocache = 'nocache' in args
         self.index_last_update_on = {}
         self.index_new_update_on = {}
 

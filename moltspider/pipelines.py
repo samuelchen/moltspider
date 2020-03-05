@@ -172,8 +172,6 @@ class DatabasePipeline(MoltPipelineBase):
                         if not self.db.exist_table(tcc.name):
                             tcc.create(self.db.engine, checkfirst=True)
 
-                        if tc.c.done.name in it:
-                            del it[tc.c.done.name]
                         stmt = tcc.insert().values(conflict_chapter_id=cid, **it)
                         try:
                             self.db.conn.execute(stmt)

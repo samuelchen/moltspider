@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime, timezone, timedelta
-from dateutil.parser import parse as dt_parse
 import scrapy
 import logging
 from ..consts import (
-    SiteSchemaKey as SSK, SchemaOtherKey as SOK, Spiders, Schemas, Args, ArticleWeight, ArticleStatus,
+    SiteSchemaKey as SSK, Spiders, Schemas,ArticleWeight
 )
-from ..db import Database, select, and_, or_, not_, func, mark_done
-from ..parser import SiteSchemas, iter_items, urljoin, arg_get_site_ids, args_get_article_ids, url_to_relative
-from scrapy.utils.project import get_project_settings
+from ..db import select, and_, not_, func, mark_done
+from ..parser import iter_items, urljoin, url_to_relative
 from .base import MoltSpiderBase
 
 log = logging.getLogger(__name__)
@@ -17,16 +14,9 @@ log = logging.getLogger(__name__)
 class TocSpider(MoltSpiderBase):
     """To get article TOC from toc page (or meta page)"""
     name = Spiders.TOC
-    allowed_domains = []
-    start_urls = []
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self.site_schemas = SiteSchemas
-        self.site_ids = arg_get_site_ids(**kwargs)
-        self.article_ids = args_get_article_ids(**kwargs)
-        self.nocache = 'nocache' in args
 
         ta = self.db.DB_t_article
         tl = self.db.DB_t_article_lock

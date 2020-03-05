@@ -53,7 +53,7 @@ def mark_done(engine_or_conn, table, col_pk, pks, done=True):
 def def_db_t_chapter_base(name, meta, schema=None):
     return Table(name, meta,
                  Column('id', Integer, primary_key=True, index=True),
-                 Column('name', String(100), unique=True, nullable=False),
+                 Column('name', String(100), nullable=False),
                  Column('is_section', Boolean, default=False),
                  Column('url', Text, unique=True),
                  Column('timestamp', DateTime(timezone=True), default=get_timestamp, onupdate=get_timestamp),

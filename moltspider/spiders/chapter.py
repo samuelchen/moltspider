@@ -2,10 +2,9 @@
 import scrapy
 import logging
 from datetime import timezone, timedelta, datetime
-from dateutil.parser import parse as dt_parse
 from ..consts import SiteSchemaKey as SSK, SchemaOtherKey as SOK, Spiders, Schemas, ArticleWeight, ArticleStatus
-from ..db import Database, select, and_, mark_done
-from ..parser import SiteSchemas, arg_get_site_ids, iter_items, args_get_index_ids, args_get_article_ids, urljoin
+from ..db import select, and_
+from ..parser import iter_items, urljoin
 from .base import MoltSpiderBase
 
 UTC = timezone.utc
@@ -18,19 +17,11 @@ log = logging.getLogger(__name__)
 class ChapterSpider(MoltSpiderBase):
     """To crawl index pages to parse all article list."""
     name = Spiders.CHAPTER
-    allowed_domains = []
-    start_urls = []
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.site_ids = arg_get_site_ids(**kwargs)
-        self.article_ids = args_get_article_ids(**kwargs)
-        self.index_ids = args_get_index_ids(**kwargs)
-        self.site_schemas = SiteSchemas
-        self.nocache = 'nocache' in args
         self.locked_articles = set()
-
         self.counters = {}
 
         ta = self.db.DB_t_article

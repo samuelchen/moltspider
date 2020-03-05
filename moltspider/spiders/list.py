@@ -4,10 +4,12 @@ from dateutil.parser import parse as dt_parse
 import scrapy
 import logging
 from ..consts import (
-    SiteSchemaKey as SSK, SchemaOtherKey as SOK, Spiders, Schemas, Args, ArticleWeight, ArticleStatus,
+    SiteSchemaKey as SSK, SchemaOtherKey as SOK,
+    Spiders, Schemas,
+    ArticleWeight, ArticleStatus,
 )
-from ..db import Database, select
-from ..parser import SiteSchemas, iter_items, urljoin, arg_get_site_ids, url_to_relative, args_get_index_ids
+from ..db import select
+from ..parser import iter_items, urljoin, url_to_relative
 from scrapy.utils.project import get_project_settings
 from .base import MoltSpiderBase
 
@@ -23,16 +25,9 @@ log = logging.getLogger(__name__)
 class ListSpider(MoltSpiderBase):
     """To get article list from index page"""
     name = Spiders.LIST
-    allowed_domains = []
-    start_urls = []
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self.site_schemas = SiteSchemas
-        self.site_ids = arg_get_site_ids(**kwargs)
-        self.indexes = args_get_index_ids(**kwargs)
-        self.nocache = 'nocache' in args
 
         ta = self.db.DB_t_article
         tl = self.db.DB_t_article_lock
@@ -46,8 +41,8 @@ class ListSpider(MoltSpiderBase):
         stmt = select([ta.c.site, ta.c.name])
         if self.site_ids:
             stmt = stmt.where(ta.c.site.in_(self.site_ids))
-        if self.indexes:
-            stmt = stmt.where(ta.c.iid.in_(self.indexes))
+        if self.index_ids:
+            stmt = stmt.where(ta.c.iid.in_(self.index_ids))
         rs = self.db.conn.execute(stmt)
         self.saved_articles = {(r[ta.c.site], r[ta.c.name]) for r in rs}
         log.info('Cached %s articles' % len(self.saved_articles))
@@ -59,8 +54,8 @@ class ListSpider(MoltSpiderBase):
         stmt = select([t.c.id, t.c.site, t.c.url, t.c.update_on])
         if self.site_ids:
             stmt = stmt.where(t.c.site.in_(self.site_ids))
-        if self.indexes:
-            stmt = stmt.where(t.c.id.in_(self.indexes))
+        if self.index_ids:
+            stmt = stmt.where(t.c.id.in_(self.index_ids))
         rs = self.db.conn.execute(stmt)
         for r in rs:
             schema = self.site_schemas.get(r[t.c.site])

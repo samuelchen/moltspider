@@ -4,8 +4,8 @@ import logging
 from datetime import timezone, timedelta, datetime
 from dateutil.parser import parse as dt_parse
 from ..consts import SiteSchemaKey as SSK, Spiders, Schemas, SchemaOtherKey as SOK
-from ..db import Database, select
-from ..parser import SiteSchemas, arg_get_site_ids, iter_items, url_to_relative
+from ..db import select
+from ..parser import iter_items, url_to_relative
 from .base import MoltSpiderBase
 UTC = timezone.utc
 CST = timezone(timedelta(hours=8))
@@ -17,22 +17,16 @@ log = logging.getLogger(__name__)
 class IndexSpider(MoltSpiderBase):
     """To crawl index pages to parse all article list."""
     name = Spiders.INDEX
-    allowed_domains = []
-    start_urls = []
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self.sites = arg_get_site_ids(**kwargs)
-        self.nocache = 'nocache' in args
-        self.site_schemas = SiteSchemas
 
         t = self.db.DB_t_index
         if not self.db.exist_table(t.name):
             t.create(self.db.conn, checkfirst=True)
 
     def start_requests(self):
-        for site in self.sites or self.site_schemas.keys():
+        for site in self.site_ids or self.site_schemas.keys():
             schema = self.site_schemas.get(site)
             url = schema.get(SSK.URL.code)
             yield scrapy.Request(url, meta={SOK.SITE.code: site, 'dont_cache': self.nocache})
