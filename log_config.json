@@ -1,0 +1,28 @@
+{
+    "version": 1,
+    "disable_existing_loggers": true,
+    "formatters": {
+        "verbose": {
+            "format": "%(levelname)-8s [%(asctime)s] [%(process)-6d] [%(threadName)-8s] %(name)s [%(lineno)d] %(message)s"
+        },
+        "simple": {
+            "format": "%(levelname)-8s [%(asctime)s] %(name)-30s [%(lineno)d] %(message)s"
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple"
+        }
+    },
+    "loggers": {
+        "scrapy": {
+            "handlers": ["console"],
+            "level": "INFO"
+        },
+        "moltspider": {
+            "handlers": ["console"],
+            "level": "INFO"
+        }
+    }
+}

@@ -1,0 +1,28 @@
+# Python >= 3.6
+
+# spiders
+scrapy >= 1.8.0
+sqlalchemy >= 1.3.13
+
+#psycopg2   #renamed to psycopg2-binary
+# window (py3.4):
+#       download from http://www.stickpeople.com/projects/python/win-psycopg/j
+#       then easy_install
+# OR
+#       pip install git+https://github.com/nwcell/psycopg2-windows.git@win32-py34#egg=psycopg2
+psycopg2-binary >= 2.8.4
+
+Pillow > = 7.0.0
+
+# plugin "html2md" to convert html to markdown
+html2text >= 2020.1.16
+
+# download files in html content
+beautifulsoup4 >= 4.8.2
+
+# gen slug for file
+python-slugify[unidecode] >= 4.0.0
+
+# reader
+flask >= 1.1.1
+Markdown
