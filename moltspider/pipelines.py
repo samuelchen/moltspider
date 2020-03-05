@@ -171,7 +171,8 @@ class DatabasePipeline(MoltPipelineBase):
                         if not self.db.exist_table(tcc.name):
                             tcc.create(self.db.engine, checkfirst=True)
 
-                        stmt = tcc.insert().values(conflict_chapter_id=cid, **it)
+                        it[tcc.c.conflict_cid.name] = cid
+                        stmt = tcc.insert().values(**it)
                         try:
                             self.db.conn.execute(stmt)
                         except Database.IntegrityError:
