@@ -11,7 +11,7 @@ jobs/
 supported_sites/
 process_plugins/
 
-settings/active.py
+moltspider/settings/active.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
