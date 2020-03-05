@@ -2,7 +2,11 @@
 import scrapy
 import logging
 from datetime import timezone, timedelta, datetime
-from ..consts import SiteSchemaKey as SSK, SchemaOtherKey as SOK, Spiders, Schemas, ArticleWeight, ArticleStatus
+from ..consts import (
+    SiteSchemaKey as SSK, SchemaOtherKey as SOK,
+    Spiders, Schemas, ArticleWeight, ArticleStatus,
+    ARTICLE_PREVIEW_CHAPTER_COUNT
+)
 from ..db import select, and_
 from ..parser import iter_items, urljoin
 from .base import MoltSpiderBase
@@ -85,6 +89,8 @@ class ChapterSpider(MoltSpiderBase):
                 for r1 in rs1:
                     chapter_url = urljoin(site_url, r1[tc.c.url])
                     self.counters[aid] += 1
+                    if r[ta.c.weight] == ArticleWeight.PREVIEW and self.counters[aid] > ARTICLE_PREVIEW_CHAPTER_COUNT:
+                        break
                     yield scrapy.Request(chapter_url, meta={'record': r1, 'chapter_table': chapter_table,
                                                             SOK.SITE.code: site, SSK.TABLE_ALONE.code: table_alone,
                                                             'aid': aid, 'aname': r[ta.c.name],

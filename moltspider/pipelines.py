@@ -153,7 +153,6 @@ class DatabasePipeline(MoltPipelineBase):
                     it.get(tc.c.name.name), it.get(tc.c.id.name), it.get(tc.c.url.name)))
                 # self.counters[aid] += 1
             except Database.IntegrityError as err:
-                log.exception(err)
                 log.warning('[%s][%s] %s(id=%s) conflict %s %s' % (site, spider.name,
                             aname, aid, it.get(tc.c.name.name), it.get(tc.c.url.name)))
 

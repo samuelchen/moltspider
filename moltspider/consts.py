@@ -65,12 +65,16 @@ class SchemaOtherKey(Options):
     ACTION_GLOBAL = 'global'        # action: this item applies to all other item
 
 
+# how many chapters will be downloaded if weight is PREVIEW
+ARTICLE_PREVIEW_CHAPTER_COUNT = 20
+
+
 class ArticleWeight(Options):
     PREMIUM = 140, 'Premium article'
     CLASSIC = 120, 'Classic article'
     CHOICE = 100, 'Editor choice'
     NORMAL = 80, 'Normal article, need download'
-    PREVIEW = 60, 'Preview article, only download N chapters'
+    PREVIEW = 60, 'Preview article, only download %d chapters' % ARTICLE_PREVIEW_CHAPTER_COUNT
     TOC = 40, 'Listed article with TOC captured'
     META = 20, 'Listed article with meta'
     LISTED = 0, 'Only added to db with url (and name)'
