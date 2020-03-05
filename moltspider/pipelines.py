@@ -145,6 +145,7 @@ class DatabasePipeline(MoltPipelineBase):
                 tc = self.db.get_db_t_site_chapter(chapter_table)
 
             # insert chapter/section
+            is_conflict = False
             stmt = tc.insert().values(**it)
             try:
                 self.db.conn.execute(stmt)
@@ -153,30 +154,31 @@ class DatabasePipeline(MoltPipelineBase):
                     it.get(tc.c.name.name), it.get(tc.c.id.name), it.get(tc.c.url.name)))
                 # self.counters[aid] += 1
             except Database.IntegrityError as err:
+                is_conflict = True
                 log.warning('[%s][%s] %s(id=%s) conflict %s %s' % (site, spider.name,
                             aname, aid, it.get(tc.c.name.name), it.get(tc.c.url.name)))
 
-                if settings.get('CHAPTER_KEEP_CONFLICT', False):
-                    # add conflict chapter to conflict table
-                    stmt = select([tc.c.id]).where(tc.c.name == it.get(tc.c.name.name))
-                    if not table_alone:
-                        stmt = stmt.where(tc.c.aid == aid)
-                    cid = self.db.conn.execute(stmt).scalar()
-                    if cid:
-                        # insert conflict chapter
-                        if table_alone:
-                            tcc = self.db.get_db_t_chapter_conflict(chapter_table)
-                        else:
-                            tcc = self.db.get_db_t_site_chapter_conflict(chapter_table)
-                        if not self.db.exist_table(tcc.name):
-                            tcc.create(self.db.engine, checkfirst=True)
+            if is_conflict and settings.get('CHAPTER_KEEP_CONFLICT', False):
+                # add conflict chapter to conflict table
+                stmt = select([tc.c.id]).where(tc.c.name == it.get(tc.c.name.name))
+                if not table_alone:
+                    stmt = stmt.where(tc.c.aid == aid)
+                cid = self.db.conn.execute(stmt).scalar()
+                if cid:
+                    # insert conflict chapter
+                    if table_alone:
+                        tcc = self.db.get_db_t_chapter_conflict(chapter_table)
+                    else:
+                        tcc = self.db.get_db_t_site_chapter_conflict(chapter_table)
+                    if not self.db.exist_table(tcc.name):
+                        tcc.create(self.db.engine, checkfirst=True)
 
-                        it[tcc.c.conflict_cid.name] = cid
-                        stmt = tcc.insert().values(**it)
-                        try:
-                            self.db.conn.execute(stmt)
-                        except Database.IntegrityError:
-                            pass
+                    it[tcc.c.conflict_cid.name] = cid
+                    stmt = tcc.insert().values(**it)
+                    try:
+                        self.db.conn.execute(stmt)
+                    except Database.IntegrityError:
+                        pass
 
             # if self.counters[article_id] >= counter['total']:
             #     self.db.unlock_article(article_id=article_id, locker=spider.spider_id)
