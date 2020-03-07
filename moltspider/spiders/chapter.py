@@ -28,10 +28,6 @@ class ChapterSpider(MoltSpiderBase):
         self.locked_articles = set()
         self.counters = {}
 
-        ta = self.db.DB_t_article
-        if not self.db.exist_table(ta.name):
-            ta.create(self.db.conn, checkfirst=True)
-
     @property
     def spider_id(self):
         return self.settings.get('SPIDER_ID')
@@ -41,14 +37,15 @@ class ChapterSpider(MoltSpiderBase):
         ta = self.db.DB_t_article
 
         # select matched articles
-        stmt = select([ta.c.id, ta.c.site, ta.c.name, ta.c.chapter_table, ta.c.update_on]).where(
-            and_(ta.c.weight >= ArticleWeight.PREVIEW, ta.c.done == False, ta.c.status <= ArticleStatus.PROGRESS))
+        stmt = select([ta.c.id, ta.c.site, ta.c.name, ta.c.weight, ta.c.chapter_table, ta.c.update_on])
         if self.site_ids:
             stmt = stmt.where(ta.c.site.in_(self.site_ids))
         if self.article_ids:
             stmt = stmt.where(ta.c.id.in_(self.article_ids))
         if self.index_ids:
             stmt = stmt.where(ta.c.iid.in_(self.index_ids))
+        stmt = stmt.where(
+            and_(ta.c.weight >= ArticleWeight.PREVIEW, ta.c.done == False, ta.c.status <= ArticleStatus.PROGRESS))
         stmt = stmt.order_by(ta.c.weight.desc(), ta.c.recommends.desc(), ta.c.id)
         LIMIT_ARTICLES = self.settings.get('LIMIT_ARTICLES', 0)
         if LIMIT_ARTICLES > 0:
@@ -65,8 +62,7 @@ class ChapterSpider(MoltSpiderBase):
             if rc >= 0:
                 self.locked_articles.add(aid)
 
-                chapter_table, tc, table_alone = self.db.get_chapter_table_name_def_alone(
-                    r[ta.c.chapter_table], site)
+                chapter_table, tc, table_alone = self.db.get_chapter_table_name_def_alone(r)
 
                 if not self.db.exist_table(chapter_table):
                     tc.create(self.db.conn, checkfirst=True)
@@ -98,6 +94,7 @@ class ChapterSpider(MoltSpiderBase):
 
             else:
                 log.warning('[%s] %s(id=%s) is locked by other spider.' % (site, r[ta.c.name], aid))
+
 
     def parse(self, response):
         r = response.meta['record']

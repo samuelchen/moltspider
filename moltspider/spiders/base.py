@@ -1,3 +1,4 @@
+from abc import ABC
 import scrapy
 import logging
 from ..db import Database
@@ -7,7 +8,7 @@ from urllib.parse import urlparse
 log = logging.getLogger(__name__)
 
 
-class MoltSpiderBase(scrapy.Spider):
+class MoltSpiderBase(scrapy.Spider, ABC):
 
     # allowed_domains = [urlparse(s.get(SSK.URL.code))[1].lstrip('www.') for s in SiteSchemas.values()]
     allowed_domains = []
@@ -21,8 +22,24 @@ class MoltSpiderBase(scrapy.Spider):
         self.index_ids = args_get_index_ids(**kwargs)
         self.article_ids = args_get_article_ids(**kwargs)
         self.nocache = 'nocache' in args
-
         # self.allowed_domains = [urlparse(SiteSchemas[s].get(SSK.URL.code))[1].lstrip('www.') for s in self.site_ids]
+
+    def __init_db(self):
+        t = self.db.DB_t_index
+        if not self.db.exist_table(t.name):
+            t.create(self.db.conn, checkfirst=True)
+        ta = self.db.DB_t_article
+        if not self.db.exist_table(ta.name):
+            ta.create(self.db.conn, checkfirst=True)
+        tl = self.db.DB_t_article_lock
+        if not self.db.exist_table(tl.name):
+            tl.create(self.db.conn, checkfirst=True)
+        txm = self.db.DB_t_article_ex_meta
+        if not self.db.exist_table(txm.name):
+            txm.create(self.db.engine)
+        tt = self.db.DB_t_article_tag
+        if not self.db.exist_table(tt.name):
+            tt.create(self.db.engine)
 
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):

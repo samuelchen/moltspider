@@ -28,14 +28,6 @@ class MetaSpider(MoltSpiderBase):
         self.index_new_update_on = {}
 
         t = self.db.DB_t_index
-        ta = self.db.DB_t_article
-        tl = self.db.DB_t_article_lock
-        if not self.db.exist_table(t.name):
-            t.create(self.db.conn, checkfirst=True)
-        if not self.db.exist_table(ta.name):
-            ta.create(self.db.conn, checkfirst=True)
-        if not self.db.exist_table(tl.name):
-            tl.create(self.db.conn, checkfirst=True)
 
         stmt = select([t.c.id, t.c.update_on])
         if self.site_ids:
@@ -53,12 +45,12 @@ class MetaSpider(MoltSpiderBase):
 
         ta = self.db.DB_t_article
 
-        stmt = select([ta.c.id, ta.c.site, ta.c.iid, ta.c.name, ta.c.url, ta.c.weight, ta.c.update_on]
-                      ).where(ta.c.weight >= ArticleWeight.META)
+        stmt = select([ta.c.id, ta.c.site, ta.c.iid, ta.c.name, ta.c.url, ta.c.weight, ta.c.update_on])
         if self.site_ids:
             stmt = stmt.where(ta.c.site.in_(self.site_ids))
         if self.article_ids:
             stmt = stmt.where(ta.c.id.in_(self.article_ids))
+        stmt = stmt.where(ta.c.weight >= ArticleWeight.META)
         LIMIT_ARTICLES = self.settings.get('LIMIT_ARTICLES', 0)
         if LIMIT_ARTICLES > 0:
             stmt = stmt.limit(LIMIT_ARTICLES)

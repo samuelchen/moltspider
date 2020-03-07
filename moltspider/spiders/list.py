@@ -29,13 +29,9 @@ class ListSpider(MoltSpiderBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        ta = self.db.DB_t_article
-        tl = self.db.DB_t_article_lock
-        if not self.db.exist_table(ta.name):
-            ta.create(self.db.conn, checkfirst=True)
-        if not self.db.exist_table(tl.name):
-            tl.create(self.db.conn, checkfirst=True)
         self.pages = 0
+
+        ta = self.db.DB_t_article
 
         # cache all saved articles (site, name)
         stmt = select([ta.c.site, ta.c.name])

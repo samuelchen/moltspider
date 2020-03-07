@@ -12,7 +12,7 @@ from sqlalchemy.sql.expression import not_, and_, or_, true as true_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
 from datetime import datetime, timezone, timedelta
-from .consts import DB_T_DOT_ESCAPE, DB_T_NAME_SEP
+from .consts import DB_T_DOT_ESCAPE, DB_T_NAME_SEP, ArticleStatus
 import logging
 
 UTC = timezone.utc
@@ -26,13 +26,6 @@ log = logging.getLogger(__name__)
 
 def get_timestamp():
     return datetime.now().replace(tzinfo=CST)
-
-
-def mark_done(engine_or_conn, table, col_pk, pks, done=True):
-    stmt = table.update().where(and_(col_pk.in_(pks), table.c.done is not done)).values(done=done)
-    # if col_returns:
-    #     stmt = stmt.returning(col_returns)
-    return engine_or_conn.execute(stmt)
 
 
 # get definition of chapter table to store chapters from one article (TABLE_ALONE is True)
@@ -232,10 +225,11 @@ class Database(object):
 
     @property
     def engine(self):
+        from sqlalchemy.pool import StaticPool
         if not self.__engine:
             conn_str = self.conn_str
             if conn_str.startswith('sqlite'):
-                self.__engine = create_engine(conn_str)
+                self.__engine = create_engine(conn_str, poolclass=StaticPool)
             else:
                 self.__engine = create_engine(conn_str, pool_size=20, max_overflow=1)
         return self.__engine
@@ -263,7 +257,12 @@ class Database(object):
     def execute(self, *args, **kwargs):
         return self.conn.execute(*args, **kwargs)
 
-    def get_chapter_table_name_def_alone(self, chapter_table, site):
+    def get_chapter_table_name_def_alone(self, record_article):
+        ra = record_article
+        ta = self.DB_t_article
+
+        chapter_table = ra[ta.c.chapter_table]
+        site = ra[ta.c.site]
         table_alone = True if chapter_table else False
         if table_alone:
             tc = self.get_db_t_chapter(chapter_table)
@@ -380,7 +379,31 @@ class Database(object):
 
         return count
 
+    def mark_article(self, ids, **values):
+        """ Update markers such as weight, done, status and etc columns.
+            Although it can update any columns of an article, not recommended because this method may
+            changed future.
+        """
+        if not isinstance(ids, (tuple, list, set)):
+            ids = [ids, ]
+        ta = self.DB_t_article
+        stmt = ta.update().where(and_(ta.c.id.in_(ids))).values(**values)
+        return self.conn.execute(stmt)
+
+    def mark_article_done(self, ids, done=True):
+        """ mark an article to done once all its chapters (in TOC) are all downloaded.
+            if done is False, means TOC is refreshed so that new chapters are not downloaded.
+            Same time, the status should be set to PROGRESS (article is keep updating).
+
+            If an article's status is [COMPLETE | TERMINATED | DELETED], it should not update TOC any more
+            so that there will be no new chapters. "done" should be always True.
+        """
+        return self.mark_article(ids, done=done, status=ArticleStatus.PROGRESS)
+
     def __del__(self):
         if self.__conn:
             self.__conn.close()
             self.__conn = None
+
+
+Database.meta.create_all(Database.get_inst().conn, checkfirst=True)

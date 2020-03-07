@@ -21,10 +21,6 @@ class IndexSpider(MoltSpiderBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        t = self.db.DB_t_index
-        if not self.db.exist_table(t.name):
-            t.create(self.db.conn, checkfirst=True)
-
     def start_requests(self):
         for site in self.site_ids or self.site_schemas.keys():
             schema = self.site_schemas.get(site)

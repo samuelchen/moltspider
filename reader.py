@@ -9,7 +9,7 @@ from flask import Flask, request, render_template_string, make_response, url_for
 
 from moltspider.db import Database
 from moltspider.parser import load_site_schemas
-from moltspider.consts import SiteSchemaKey as SSK
+from moltspider.consts import SiteSchemaKey as SSK, ArticleStatus, ArticleWeight
 from moltspider.utils import str_md5
 from sqlalchemy import select, and_, not_, func
 import markdown
@@ -235,64 +235,63 @@ def article_index(iid):
     return resp
 
 
-@app.route('/<int:aid>/', methods=['GET'])
+@app.route('/<int:aid>/', methods=['GET', 'POST'])
 def article_page(aid):
+
     context = {
         "encoding": 'utf-8'
     }
     db = Database()
+    ta = db.DB_t_article
 
+    # POST
+    handle_rate_form(request, aid, db)
+
+    #  GET
     try:
-        ta = db.DB_t_article
 
         # get article information
         stmt = select([ta.c.id, ta.c.site, ta.c.iid, ta.c.name, ta.c.author, ta.c.category, ta.c.length, ta.c.status,
-                       ta.c.desc, ta.c.recommends, ta.c.favorites, ta.c.recommends_month, ta.c.update_on,
+                       ta.c.desc, ta.c.recommends, ta.c.favorites, ta.c.recommends_month, ta.c.update_on, ta.c.weight,
                        ta.c.chapter_table, ta.c.timestamp]
                       ).where(ta.c.id == aid).order_by(ta.c.id)
         rs = db.conn.execute(stmt)
         ra = rs.fetchone()
 
-        chapter_table, tc, table_alone = db.get_chapter_table_name_def_alone(ra[ta.c.chapter_table], ra[ta.c.site])
+        chapter_table, tc, table_alone = db.get_chapter_table_name_def_alone(ra)
 
-        if not db.exist_table(chapter_table):
-            context['content'] = """
-            <h3 align="center">%(id)s %(name)s</h3>
-            <p align="center"><a href="/i/%(iid)s">返回索引</a></p>
-            <h3> 还未上传 </h3>
-            """ % ra
-            resp = make_response(render_template_string(template_page, **context))
-            resp.headers['Content-Type'] = 'text/html; charset=utf-8'
-            return resp
-
-        # get article toc
-        stmt = select([tc.c.id, tc.c.name, tc.c.is_section])#.where(tc.c.content!=None)
-        if not table_alone:
-            stmt = stmt.where(tc.c.aid == aid)
-        stmt = stmt.order_by(tc.c.id)
-        rs = db.conn.execute(stmt)
+        if db.exist_table(chapter_table):
+            # get article toc
+            stmt = select([tc.c.id, tc.c.name, tc.c.is_section])#.where(tc.c.content!=None)
+            if not table_alone:
+                stmt = stmt.where(tc.c.aid == aid)
+            stmt = stmt.order_by(tc.c.id)
+            rs = db.conn.execute(stmt)
+        else:
+            rs = None
 
         i = 0
         odd = True
         sb = []
         sb.append('<h3 align="center">%(name)s</h3>' % ra)
         sb.append('<p align="center"><a href="/i/%(iid)s">返回索引</a></p>\n' % ra)
+        render_rate_form(sb, aweight=ra[ta.c.weight], astatus=ra[ta.c.status])
         sb.append('<table align="center" width="95%">')
+        if rs:
+            for r in rs:
+                if i % colspan == 0:
+                    sb.append('<tr style="%s">' % 'background-color:#eee' if odd else '')
+                    odd = not odd
+                if r['is_section']:
+                    sb.append('</tr><tr style="background-color:silver"><td colspan="%s" align="center">%s</td></tr>' % (colspan, r['name'] or ''))
+                    i = 0
+                else:
+                    sb.append('<td><a href="/%s/%s/">%s</a></td>' % (aid, r['id'], r['name'] or '阅读'))
+                    i += 1
+                if i % colspan == 0:
+                    sb.append('</tr>')
 
-        for r in rs:
-            if i % colspan == 0:
-                sb.append('<tr style="%s">' % 'background-color:#eee' if odd else '')
-                odd = not odd
-            if r['is_section']:
-                sb.append('</tr><tr style="background-color:silver"><td colspan="%s" align="center">%s</td></tr>' % (colspan, r['name'] or ''))
-                i = 0
-            else:
-                sb.append('<td><a href="/%s/%s/">%s</a></td>' % (aid, r['id'], r['name'] or '阅读'))
-                i += 1
-            if i % colspan == 0:
-                sb.append('</tr>')
-
-        if rs.rowcount == 0:
+        if rs is None or rs.rowcount == 0:
             sb.append('<tr style="background-color:#eee"><td> 还未上传 </td></tr>')
 
         sb.append('</table>')
@@ -313,15 +312,17 @@ def chapter(aid, cid):
         "encoding": 'utf-8'
     }
     db = Database()
+    ta = db.DB_t_article
+
+    handle_rate_form(request, aid, db)
 
     try:
         # load article information
-        ta = db.DB_t_article
-        stmt = select([ta.c.site, ta.c.name, ta.c.chapter_table]).where(ta.c.id == aid)
+        stmt = select([ta.c.site, ta.c.name, ta.c.weight, ta.c.status, ta.c.chapter_table]).where(ta.c.id == aid)
         ra = db.conn.execute(stmt).fetchone()
         aname = ra[ta.c.name]
 
-        chapter_table, tc, table_alone = db.get_chapter_table_name_def_alone(ra[ta.c.chapter_table], ra[ta.c.site])
+        chapter_table, tc, table_alone = db.get_chapter_table_name_def_alone(ra)
 
         # load article chapter
         stmt = select([tc.c.id, tc.c.name, tc.c.content, tc.c.is_section]).where(tc.c.id == cid)
@@ -361,6 +362,7 @@ def chapter(aid, cid):
         sb.append('<h3 align="center">%s</h3>' % (r[tc.c.name] or aname))
         sb.append('<center><p>快捷键：左、右键 翻页，-、=(+)键 字体大小</p></center>')
         sb.append(nav)
+        render_rate_form(sb, aweight=ra[ta.c.weight], astatus=ra[ta.c.status])
         sb.append('<div style="width:100%;background-color:#eee;">')
         sb.append('<hr />')
         sb.append('<div id="content" class="article" style="font-size:22px">%s</div>\n' % chapter_content)
@@ -409,12 +411,52 @@ def chapter(aid, cid):
     return resp
 
 
+def render_rate_form(string_builder_list, aweight, astatus):
+    sb = string_builder_list
+    # rate it.
+    sb.append('<center><form id="rate" method="post">')
+    sb.append('<select name="aweight" onchange="form.submit()">')
+    for o in ArticleWeight.all:
+        sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
+            o.code, o.get_text(), 'selected' if o == aweight else ''))
+    sb.append('</select>')
+    sb.append('<select name="astatus" onchange="form.submit()">')
+    for o in ArticleStatus.all:
+        sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
+            o.code, o.get_text(), 'selected' if o == astatus else ''))
+    sb.append('</select>')
+    sb.append('</form></center>')
+
+
+def handle_rate_form(request, aid, db=None):
+    if db is None:
+        db = Database.get_inst()
+
+    ta = Database.DB_t_article
+    if request.method == 'POST':
+        fields = {}
+        aweight = request.form.get('aweight')
+        if aweight:
+            fields[ta.c.weight.name] = int(aweight)
+        astatus = request.form.get('astatus')
+        if astatus:
+            fields[ta.c.status.name] = int(astatus)
+
+        if fields:
+            stmt = ta.update().values(**fields).where(ta.c.id == aid)
+            db.execute(stmt)
+
+
 if __name__ == "__main__":
 
     try:
-        port = int(sys.argv[1])
+        port = sys.argv[1]
+        port = port.split(':')
+        host = port[0]
+        port = int(port[1])
         if port <= 0 or port > 65535:
             port = 8080
     except:
+        host = '127.0.0.1'
         port = 8080
-    app.run(debug=True, host='127.0.0.1', port=port)
+    app.run(host=host, port=port, debug=True)

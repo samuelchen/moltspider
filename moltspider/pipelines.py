@@ -11,7 +11,7 @@ from slugify import slugify
 from scrapy.exceptions import DropItem
 from scrapy.pipelines.images import ImagesPipeline, FilesPipeline
 from scrapy.utils.project import get_project_settings
-from .db import Database, mark_done, select
+from .db import Database, select
 from .consts import Spiders, SiteSchemaKey as SSK, SchemaOtherKey as SOK
 from .utils import gen_hash_file_path, gen_file_path
 
@@ -220,7 +220,7 @@ class DatabasePipeline(MoltPipelineBase):
                 log.error('[%s][%s] Article %s(id=%s) has no counter.' % (site, spider.name, aname, aid))
                 count = 0
             if count == self.chapter_counter[aid]:
-                mark_done(self.db.conn, ta, ta.c.id, [aid, ], True)
+                self.db.mark_article_done([aid, ], True)
                 log.info('[%s][%s] Article %s(id=%s) all chapters captured.' % (site, spider.name, aname, aid))
 
         else:
@@ -241,9 +241,6 @@ class TagsPipeline(MoltPipelineBase):
 
     def __init__(self):
         super().__init__()
-        tt = self.db.DB_t_article_tag
-        if not self.db.exist_table(tt.name):
-            tt.create(self.db.engine)
 
     def process_item(self, item, spider):
         ta = self.db.DB_t_article
@@ -293,10 +290,6 @@ class ExtraMetaPipeline(MoltPipelineBase):
 
     def __init__(self):
         super().__init__()
-
-        txm = self.db.DB_t_article_ex_meta
-        if not self.db.exist_table(txm.name):
-            txm.create(self.db.engine)
 
     def process_item(self, item, spider):
         ta = self.db.DB_t_article

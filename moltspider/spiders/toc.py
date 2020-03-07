@@ -2,9 +2,10 @@
 import scrapy
 import logging
 from ..consts import (
-    SiteSchemaKey as SSK, Spiders, Schemas,ArticleWeight
+    SiteSchemaKey as SSK, Spiders, Schemas,ArticleWeight,
+    ARTICLE_PREVIEW_CHAPTER_COUNT
 )
-from ..db import select, and_, not_, func, mark_done
+from ..db import select, and_, not_, func
 from ..parser import iter_items, urljoin, url_to_relative
 from .base import MoltSpiderBase
 
@@ -17,13 +18,6 @@ class TocSpider(MoltSpiderBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        ta = self.db.DB_t_article
-        tl = self.db.DB_t_article_lock
-        if not self.db.exist_table(ta.name):
-            ta.create(self.db.conn, checkfirst=True)
-        if not self.db.exist_table(tl.name):
-            tl.create(self.db.conn, checkfirst=True)
 
         self.pages = 0
         self.chapter_counters = {}
@@ -44,13 +38,13 @@ class TocSpider(MoltSpiderBase):
         #   * weight >= TOC
         #   * not locked by other spider
         #   * status <= PROGRESS
-        stmt = select([ta.c.id, ta.c.site, ta.c.url, ta.c.name, ta.c.url_toc, ta.c.chapter_table, ta.c.update_on]
-                      ).where(and_(ta.c.weight >= ArticleWeight.TOC, not_(ta.c.id.in_(stmt_lock))))
+        stmt = select([ta.c.id, ta.c.site, ta.c.url, ta.c.name, ta.c.weight, ta.c.status,
+                       ta.c.url_toc, ta.c.chapter_table, ta.c.update_on])
         if self.article_ids:
             stmt = stmt.where(ta.c.id.in_(self.article_ids))
         elif self.site_ids:
             stmt = stmt.where(ta.c.site.in_(self.site_ids))
-
+        stmt = stmt.where(and_(ta.c.weight >= ArticleWeight.TOC_PREVIEW, not_(ta.c.id.in_(stmt_lock))))
         stmt = stmt.order_by(ta.c.weight.desc(), ta.c.recommends.desc(), ta.c.id)
         LIMIT_ARTICLES = self.settings.get('LIMIT_ARTICLES', 0)
         if LIMIT_ARTICLES > 0:
@@ -65,8 +59,7 @@ class TocSpider(MoltSpiderBase):
             if rc >= 0:
                 # only yield unlocked or locked-by-self articles
 
-                chapter_table, tc, table_alone = self.db.get_chapter_table_name_def_alone(
-                    r[ta.c.chapter_table], r[ta.c.site])
+                chapter_table, tc, table_alone = self.db.get_chapter_table_name_def_alone(r)
 
                 if not self.db.exist_table(chapter_table):
                     tc.create(self.db.conn, checkfirst=True)
@@ -89,19 +82,29 @@ class TocSpider(MoltSpiderBase):
         # if 'Bandwidth exceeded' in response.body:
         #     raise scrapy.exceptions.CloseSpider('bandwidth_exceeded')
 
+        def is_reached_preview_count():
+            if aweight == ArticleWeight.TOC_PREVIEW and \
+                    self.chapter_counters[aid]['total'] >= ARTICLE_PREVIEW_CHAPTER_COUNT:
+                log.warning('[%s] %s(id=%s) reaches %s limit(%s).' % (
+                    site, aname, aid, ArticleWeight.TOC_PREVIEW.name, ARTICLE_PREVIEW_CHAPTER_COUNT))
+                return True
+            return False
+
         ta = self.db.DB_t_article
         r = response.meta['record']
+        conn = self.db.create_connection()
 
         # whether standalone table
-        chapter_table, tc, table_alone = self.db.get_chapter_table_name_def_alone(r[ta.c.chapter_table], r[ta.c.site])
+        chapter_table, tc, table_alone = self.db.get_chapter_table_name_def_alone(r)
 
         aid = r[ta.c.id]
         aname = r[ta.c.name]
         site = r[ta.c.site]
+        aweight = r[ta.c.weight]
 
         # chapter id, ordered. maybe multiple pages.
         stmt = select([func.max(tc.c.id)])
-        cid = self.db.conn.execute(stmt).scalar()
+        cid = conn.execute(stmt).scalar()
 
         if table_alone:
             cid = cid + 10 if cid else 10
@@ -117,9 +120,16 @@ class TocSpider(MoltSpiderBase):
             site, aname, aid, self.chapter_counters[aid]['existed']))
         self.chapter_counters[aid]['total'] = self.chapter_counters[aid]['existed']
 
+        if is_reached_preview_count():
+            return
+
         # loop all chapter links in current page
-        captured_new = False
+        is_article_marked_not_done = False
         for item in iter_items(self, response, [site, ], Schemas.TOC_PAGE):
+
+            if is_reached_preview_count():
+                return
+
             name = item.get(tc.c.name.name)
             url = item.get(tc.c.url.name)
             item[tc.c.url.name] = url_to_relative(url)
@@ -136,13 +146,14 @@ class TocSpider(MoltSpiderBase):
             if item_is_new:
                 # item[tc.c.done.name] = False
                 item['chapter_table'] = chapter_table
-                if table_alone:
-                    item[SSK.TABLE_ALONE.code] = table_alone
-                else:
+                item[SSK.TABLE_ALONE.code] = table_alone
+                if not table_alone:
                     item[tc.c.aid.name] = aid
                 item[ta.c.id.name] = cid
                 self.chapter_counters[aid]['total'] += 1  # total count + 1
-                captured_new = True
+                if not is_article_marked_not_done:
+                    self.db.mark_article_done([aid, ], done=False)
+                    is_article_marked_not_done = True
                 yield item
             else:
                 log.debug('[%s] Skipped existed chapter(section) %s' % (site, name))
@@ -161,7 +172,8 @@ class TocSpider(MoltSpiderBase):
                     SSK.TABLE_ALONE.code: table_alone
                 }
                 self.chapter_counters[aid]['total'] += 1
-                captured_new = True
+                if not is_article_marked_not_done:
+                    self.db.mark_article_done([aid, ], done=False)
             else:
                 log.debug('[%s] Skipped existed chapter(section) %s' % (site, url))
 
@@ -169,10 +181,6 @@ class TocSpider(MoltSpiderBase):
         log.info('[%s] %s(id=%s) chapters counts: total=%s, existed=%s (including duplicates)' % (
             site, aname, aid, self.chapter_counters[aid]['total'],
             self.chapter_counters[aid]['existed']))
-
-        if captured_new:
-            ta = self.db.DB_t_article
-            mark_done(self.db.conn, ta, ta.c.id, [aid, ], done=False)
 
     # def log_articles(self, articles):
     #
@@ -190,12 +198,14 @@ class TocSpider(MoltSpiderBase):
         existed_chapters = set()
         existed_sections = set()
 
+        conn = self.db.create_connection()
+
         # finished chapters
         tc = table_def
         stmt = select([tc.c.id, tc.c.name, tc.c.is_section, tc.c.url])
         if not table_alone:
             stmt = stmt.where(tc.c.aid == aid)
-        rs = self.db.conn.execute(stmt)
+        rs = conn.execute(stmt)
 
         # cache finished urls
         for r in rs:

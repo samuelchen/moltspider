@@ -1,7 +1,10 @@
 from optenum import Options, OptionGroup as G
+from gettext import gettext as _
 
 DB_T_DOT_ESCAPE = ('.', '!')    # escape '.'(dot) for creating table name in DB
 DB_T_NAME_SEP = '#'             # separator for creating table name in DB
+
+# TODO: change all options texts and i18n
 
 
 class Args(Options):
@@ -19,7 +22,6 @@ class Spiders(Options):
     META = 'meta', 'meta spider to get article meta from article meta page'
     TOC = 'toc', 'toc spider to get article TOC (chapter list) from toc page'
     CHAPTER = 'chapter', 'chapter spider to get chapter content from chapter page'
-    FILE = '_file_', 'file spider'
 
 
 class Schemas(Options):
@@ -54,7 +56,6 @@ class SiteSchemaKey(Options):
 
 class SchemaOtherKey(Options):
     SITE = 'site'                   # site id (added)
-    IS_UPDATING = 'is_updating'     # flag whether the page is updating
 
     ALBUM_DL = 'album'                 # album link to be downloaded
     ALBUM_DL_PATH = 'album_path'    # album downloaded path
@@ -62,29 +63,32 @@ class SchemaOtherKey(Options):
     FILE_DL_PATH = 'file_path'      # file downloaded path
 
     ACTION_NEXT = 'next'            # action: next page
-    ACTION_GLOBAL = 'global'        # action: this item applies to all other item
 
 
 # how many chapters will be downloaded if weight is PREVIEW
-ARTICLE_PREVIEW_CHAPTER_COUNT = 20
+ARTICLE_PREVIEW_CHAPTER_COUNT = 30
 
 
 class ArticleWeight(Options):
-    PREMIUM = 140, 'Premium article'
-    CLASSIC = 120, 'Classic article'
-    CHOICE = 100, 'Editor choice'
-    NORMAL = 80, 'Normal article, need download'
-    PREVIEW = 60, 'Preview article, only download %d chapters' % ARTICLE_PREVIEW_CHAPTER_COUNT
-    TOC = 40, 'Listed article with TOC captured'
-    META = 20, 'Listed article with meta'
-    LISTED = 0, 'Only added to db with url (and name)'
-    ACHIEVED = -20, 'Achieved article. hide'
+    PREMIUM = 140, _('Premium article, VIP access')
+    CLASSIC = 120, _('Classic article')
+    CHOICE = 100, _('Editor choice, promoted')
+    NORMAL = 80, _('Normal article, download all chapters')
+    PREVIEW = 60, _('Preview article, download first %d chapters') % ARTICLE_PREVIEW_CHAPTER_COUNT
+    TOC = 40, _('Listed article with TOC captured')
+    TOC_PREVIEW = 35, _('Preview TOC, download first %d entries of TOC' % ARTICLE_PREVIEW_CHAPTER_COUNT)
+    META = 20, _('Listed article with meta captured')
+    LISTED = 0, _('Added to db with url and name')
+    ACHIEVED = -20, _('Achieved article. Hidden.')
 
 
 class ArticleStatus(Options):
-    COMPLETE = 100, 'completely written by author.'
-    ABANDON = 80, 'abandoned by author (no updates for 180 days)'
-    TERMINATED = 50, 'mark done by editor'
-    PROGRESS = 20, 'keep updating in progress'
-    INCLUDED = 0, 'added to database'
-    DELETED = -100, 'deleted.'
+    DELETED = 200, _('Deleted.')
+    COMPLETE = 100, _('Completed article.')
+    TERMINATED = 80, _('Mark done by editor')
+    ABANDON = 60, _('Abandoned by author (no updates for 180 days)')
+    PENDING = 40, _('Pending to be finished/abandoned (no updates for 30 days)')
+    SLOW = 30, _('Slow updating (no updates for 7 days)')
+    PROGRESS = 20, _('Keep updating in progress')
+    INCLUDED = 0, _('Added to database')
+
