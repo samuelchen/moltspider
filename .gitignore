@@ -8,9 +8,9 @@ log/
 data/
 temp/
 jobs/
-supported_sites/
-process_plugins/
 
+supported-sites
+process-plugins
 moltspider/settings/active.py
 
 # Byte-compiled / optimized / DLL files

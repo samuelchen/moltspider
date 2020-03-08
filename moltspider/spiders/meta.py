@@ -1,20 +1,12 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime, timezone, timedelta
 from dateutil.parser import parse as dt_parse
 import scrapy
 import logging
-from ..consts import SiteSchemaKey as SSK, Spiders, Schemas, ArticleWeight
+from ..consts import SiteSchemaKey as SSK, Spiders, Schemas, ArticleWeight, CST, MIN_DATE
 from ..db import select
 from ..parser import iter_items, urljoin, url_to_relative
-from scrapy.utils.project import get_project_settings
 from .base import MoltSpiderBase
 
-UTC = timezone.utc
-CST = timezone(timedelta(hours=8))
-MIN_DATE = datetime.min.replace(tzinfo=CST)
-
-settings = get_project_settings()
-LIMIT_INDEX_PAGES = settings['LIMIT_INDEX_PAGES']
 log = logging.getLogger(__name__)
 
 
@@ -51,10 +43,9 @@ class MetaSpider(MoltSpiderBase):
         if self.article_ids:
             stmt = stmt.where(ta.c.id.in_(self.article_ids))
         stmt = stmt.where(ta.c.weight >= ArticleWeight.META)
-        LIMIT_ARTICLES = self.settings.get('LIMIT_ARTICLES', 0)
-        if LIMIT_ARTICLES > 0:
-            stmt = stmt.limit(LIMIT_ARTICLES)
-            log.warning('Limit %s articles. Others wll be ignored.' % LIMIT_ARTICLES)
+        if self.limit_articles > 0:
+            stmt = stmt.limit(self.limit_articles)
+            # log.warning('Limit %s articles. Others wll be ignored.' % self.limit_articles)
         rs = self.db.conn.execute(stmt)
         for r in rs:
             schema = self.site_schemas.get(r[ta.c.site])

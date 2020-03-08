@@ -1,19 +1,30 @@
 from optenum import Options, OptionGroup as G
 from gettext import gettext as _
+from datetime import timezone, timedelta, datetime
 
 DB_T_DOT_ESCAPE = ('.', '!')    # escape '.'(dot) for creating table name in DB
 DB_T_NAME_SEP = '#'             # separator for creating table name in DB
+
+UTC = timezone.utc
+CST = timezone(timedelta(hours=8))
+MIN_DATE = datetime.min.replace(tzinfo=CST)
+
 
 # TODO: change all options texts and i18n
 
 
 class Args(Options):
     SEP = ','
-    SITES = 'sites', '$SEP (comma,) separated list or site domains (site ids). from `supported_sites` folder.'
-    ARTICLES = 'articles', '$SEP (comma,) separated list of articles id(s). from DB article table'
-    INDEXES = 'indexes', '$SEP (comma,) separated list of index id(s). from DB index table'
-    CHAPTER_FROM_ID = 'chapter_from_id', 'chapter id which will be crawled start from. from DB article table'
-    CHAPTER_TO_ID = 'chapter_to_id', 'chapter id which will be crawled end to. from DB article table'
+    SITES = 's', '"%s" separated list or site domains (site ids). from `supported_sites` folder.' % SEP
+    ARTICLES = 'a', '"%s" separated list of articles id(s). from DB article table' % SEP
+    ARTICLE_COUNT = 'ac', 'how many articles will be crawled'
+    INDEXES = 'i', '"%s" separated list of index id(s). from DB index table' % SEP
+    CHAPTER_FROM_ID = 'cf', 'chapter id which will be crawled start from. from DB article table'
+    CHAPTER_TO_ID = 'ct', 'chapter id which will be crawled end to. from DB article table'
+    CHAPTER_COUNT = 'cc', 'how many chapters will be crawled'
+    PAGES = 'p', 'how many pages will be crawled if there is next link'
+
+    NOCACHE = 'nocache', 'do not use cache in this crawling'
 
 
 class Spiders(Options):

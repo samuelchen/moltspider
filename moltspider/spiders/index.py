@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 import scrapy
 import logging
-from datetime import timezone, timedelta, datetime
 from dateutil.parser import parse as dt_parse
-from ..consts import SiteSchemaKey as SSK, Spiders, Schemas, SchemaOtherKey as SOK
+from ..consts import (
+    SiteSchemaKey as SSK, Spiders, Schemas, SchemaOtherKey as SOK,
+    MIN_DATE
+)
 from ..db import select
 from ..parser import iter_items, url_to_relative
 from .base import MoltSpiderBase
-UTC = timezone.utc
-CST = timezone(timedelta(hours=8))
-MIN_DATE = datetime.min.replace(tzinfo=CST)
 
 log = logging.getLogger(__name__)
 

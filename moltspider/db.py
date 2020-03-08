@@ -11,6 +11,7 @@ from sqlalchemy.sql import select, update
 from sqlalchemy.sql.expression import not_, and_, or_, true as true_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
+from sqlalchemy.pool import StaticPool
 from datetime import datetime, timezone, timedelta
 from .consts import DB_T_DOT_ESCAPE, DB_T_NAME_SEP, ArticleStatus
 import logging
@@ -102,7 +103,7 @@ class Database(object):
 
     IntegrityError = IntegrityError
     meta = MetaData()
-    schema = None
+    schema = meta.schema
     __inst = None
 
     DB_t_index = Table('index', meta,
@@ -196,10 +197,12 @@ class Database(object):
                              )
 
     def __init__(self, conn_str='', schema=None):
-        self.schema = schema
+        self.schema = schema or Database.schema
         self.__engine = None
         self.__conn = None
-        self.__conn_str = conn_str
+        self.__conn_str = None
+        self.conn_str = conn_str
+        self.__is_sqlite = None
 
     @classmethod
     def get_inst(cls, conn_str='', schema=None):
@@ -217,6 +220,10 @@ class Database(object):
         if not self.__conn_str:
             settings = Database.__internal_settings()
             self.__conn_str = settings['DB_CONNECTION_STRING']
+            if self.__conn_str.startswith('sqlite'):
+                self.__is_sqlite = True
+            else:
+                self.__is_sqlite = False
         return self.__conn_str
 
     @conn_str.setter
@@ -225,7 +232,6 @@ class Database(object):
 
     @property
     def engine(self):
-        from sqlalchemy.pool import StaticPool
         if not self.__engine:
             conn_str = self.conn_str
             if conn_str.startswith('sqlite'):
@@ -241,13 +247,13 @@ class Database(object):
         # return tname == name
         return self.engine.has_table(name, schema=self.schema)
 
-    def create_connection(self, **kwargs):
-        return self.engine.connect(**kwargs)
+    def connect(self, *args, **kwargs):
+        return self.engine.connect(*args, **kwargs)
 
     @property
     def conn(self):
         if not self.__conn:
-            self.__conn = self.create_connection()
+            self.__conn = self.connect()
         return self.__conn
 
     @property
@@ -255,7 +261,7 @@ class Database(object):
         return self.engine.url
 
     def execute(self, *args, **kwargs):
-        return self.conn.execute(*args, **kwargs)
+        return self.engine.execute(*args, **kwargs)
 
     def get_chapter_table_name_def_alone(self, record_article):
         ra = record_article
@@ -340,14 +346,13 @@ class Database(object):
         rc = 0      # succeed (unlocked the article)
         tl = self.DB_t_article_lock
         stmt = tl.insert().values(aid=article_id, name=name, locker=locker, timestamp=datetime.now().replace(tzinfo=CST))
-        conn = self.conn
         try:
-            conn.execute(stmt)
+            self.engine.execute(stmt)
             log.info('Locked article %s(id=%s).' % (name or '', article_id))
         except IntegrityError as err:
             try:
                 stmt = select([tl.c.locker]).where(tl.c.aid == article_id)
-                lckr = conn.execute(stmt).scalar()
+                lckr = self.engine.execute(stmt).scalar()
                 if lckr == locker:
                     rc = 1      # unlocked. the article was locked by self
                     log.debug('article %s(id=%s) is locked by self' % (name or '', article_id))
@@ -363,9 +368,8 @@ class Database(object):
         tl = self.DB_t_article_lock
         stmt = tl.delete().where(and_(tl.c.aid == article_id, tl.c.locker == locker))
         count = 0
-        conn = self.conn
         try:
-            rs = conn.execute(stmt)
+            rs = self.engine.execute(stmt)
             count = rs.rowcount
         except Exception as err:
             log.exception(err)
@@ -403,6 +407,7 @@ class Database(object):
     def __del__(self):
         if self.__conn:
             self.__conn.close()
+            del self.__conn
             self.__conn = None
 
 

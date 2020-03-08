@@ -35,20 +35,32 @@ broad spider for all kinds of site
 
     multi-values are separated by comma(`,`).
     
-    * `sites`: crawl in list sites only. e.g `-a sites=a.com,b.net,c.org`
+    * `s`: crawl in list `site` ids only. e.g `-a s=a.com,b.net,c.org`
         
-        If no sites specified, will crawl all **supported sites**.
+        If no sites specified, will crawl **all** supported sites.
+        
+    * `i`: crawl in list `index` ids. e.g. `-a i=1,3`
+        
+        If not specified, will crawl **all** indexes in DB. 
     
-    * `articles`: cralw only specified articles. e.g. `-a articles=3,8,23`
+    * `a`: crawl only specified `article` ids. e.g. `-a a=3,8,23`
         if not specified, will crawl all articles that match `article weight`
         
         * weight = LISTED: only listed in DB (meta, toc, chapter will no be crawled)
         * weight = META: only crawl meta (toc, chapter will not be crawled)
-        * weight = TOC: only crawl toc (chapter will not be crawled)
-        * weight = NORMAL: crawl all
+        * weight = TOC_PREVIEW: crawl n entries in TOC. (n == ARTICLE_PREVIEW_CHAPTER_COUNT)
+        * weight = TOC: only crawl toc (chapter content will not be crawled)
+        * weight = PREVIEW: crawl n chapters content. (n == ARTICLE_PREVIEW_CHAPTER_COUNT)
+        * weight = NORMAL: crawl all chapter content
         * weight = CHOICE: editor choice. crawl first. Good articles.
         * weight = CLASSIC: classic articles. crawl first. 
         * weight = PREMIUM: premium articles. crawl first.
+    
+    * `cf`: chapter from id. `chapter` spider only. id must in downloaded TOC.
+    * `ct`: chapter to id. `chapter` spider only. id must in downloaded TOC.
+    * `p`: pages to crawl if there is `next` page. e.g. `-a p=2` means crawl only 2 pages.
+    * `ac`: count of articles will be crawled.
+    * `cc`: chapters of articles will be crawled.
 
     * remember last crawled. use `scrap states` 
     

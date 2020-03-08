@@ -4,33 +4,25 @@
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: https://doc.scrapy.org/en/latest/topics/item-pipeline.html
-from datetime import timezone, datetime, date, timedelta
 import os
 import scrapy
-from slugify import slugify
-from scrapy.exceptions import DropItem
 from scrapy.pipelines.images import ImagesPipeline, FilesPipeline
 from scrapy.utils.project import get_project_settings
 from .db import Database, select
 from .consts import Spiders, SiteSchemaKey as SSK, SchemaOtherKey as SOK
-from .utils import gen_hash_file_path, gen_file_path
-
+from .utils import gen_file_path
 import logging
 
-UTC = timezone.utc
-CST = timezone(timedelta(hours=8))
-MIN_DATE = datetime.min.replace(tzinfo=CST)
-
+log = logging.getLogger(__name__)
 settings = get_project_settings()
 
+CHAPTER_KEEP_CONFLICT = settings.get('CHAPTER_KEEP_CONFLICT', False)
 ALBUMS_URL_FIELD = settings.get("IMAGES_URL_FIELD", 'album')
 ALBUMS_RESULT_FIELD = settings.get("IMAGES_RESULT_FIELD", 'album_path')
 ALBUMS_STORE = settings.get("IMAGES_STORE", 'albums')
 FILES_URL_FIELD = settings.get("FILES_URL_FIELD", 'file')
 FILES_RESULT_FIELD = settings.get("FILES_RESULT_FIELD", 'file_path')
 FILES_STORE = settings.get("FILES_STORE", 'medias')
-
-log = logging.getLogger(__name__)
 
 
 class MoltPipelineBase(object):
@@ -158,7 +150,7 @@ class DatabasePipeline(MoltPipelineBase):
                 log.warning('[%s][%s] %s(id=%s) conflict %s %s' % (site, spider.name,
                             aname, aid, it.get(tc.c.name.name), it.get(tc.c.url.name)))
 
-            if is_conflict and settings.get('CHAPTER_KEEP_CONFLICT', False):
+            if is_conflict and CHAPTER_KEEP_CONFLICT:
                 # add conflict chapter to conflict table
                 stmt = select([tc.c.id]).where(tc.c.name == it.get(tc.c.name.name))
                 if not table_alone:

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime, timezone, timedelta
 from dateutil.parser import parse as dt_parse
 import scrapy
 import logging
@@ -7,18 +6,12 @@ from ..consts import (
     SiteSchemaKey as SSK, SchemaOtherKey as SOK,
     Spiders, Schemas,
     ArticleWeight, ArticleStatus,
+    CST, MIN_DATE
 )
 from ..db import select
 from ..parser import iter_items, urljoin, url_to_relative
-from scrapy.utils.project import get_project_settings
 from .base import MoltSpiderBase
 
-UTC = timezone.utc
-CST = timezone(timedelta(hours=8))
-MIN_DATE = datetime.min.replace(tzinfo=CST)
-
-settings = get_project_settings()
-LIMIT_INDEX_PAGES = settings['LIMIT_INDEX_PAGES']
 log = logging.getLogger(__name__)
 
 
@@ -81,8 +74,8 @@ class ListSpider(MoltSpiderBase):
         for item in iter_items(self, response, [site, ], Schemas.INDEX_PAGE):
             if item.get(SSK.ACTION.code) == SOK.ACTION_NEXT.code:
                 self.pages += 1
-                if self.pages > LIMIT_INDEX_PAGES > 0:
-                    log.info('[%s] Quit from %s. Reach LIMIT_INDEX_PAGES(%s)' % (site, resp_path, LIMIT_INDEX_PAGES))
+                if self.pages > self.limit_pages > 0:
+                    log.info('[%s] Quit from %s. Reach limited pages (%s)' % (site, resp_path, self.limit_pages))
                     break
                 elif is_empty_page:
                     log.info('[%s] Quit from %s due to empty page' % (site, resp_path))

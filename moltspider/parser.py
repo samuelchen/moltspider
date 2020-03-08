@@ -103,6 +103,46 @@ def args_get_index_ids(**kwargs):
     return indexes
 
 
+def args_get_chapter_from_to(**kwargs):
+    """obtain chapter from (id) to (id) to be crawled"""
+    cf = kwargs.get(Args.CHAPTER_FROM_ID.code)
+    ct = kwargs.get(Args.CHAPTER_TO_ID.code)
+
+    if cf:
+        cf = int(cf)
+        log.warning('Limit chapters from %s' % cf)
+    if ct:
+        ct = int(ct)
+        log.warning('Limit chapters to %s' % ct)
+
+    return cf, ct
+
+
+def args_get_count(**kwargs):
+    """obtain counts (pages, articles, chapters ..) from keyword arguments"""
+    pages = int(kwargs.get(Args.PAGES.code, 0))
+    if pages > 0:
+        log.warning('Limit to %s pages' % pages)
+
+    acount = int(kwargs.get(Args.ARTICLE_COUNT.code, 0))
+    if acount > 0:
+        log.warning('Limit to %s articles' % acount)
+
+    ccount = int(kwargs.get(Args.CHAPTER_COUNT.code, 0))
+    if acount > 0:
+        log.warning('Limit to %s chapters' % ccount)
+
+    return pages, acount, ccount
+
+
+def args_get_nocache(*args, **kwargs):
+
+    nocache = Args.NOCACHE.code in args
+    if nocache:
+        log.warning('Disable cache in this crawl.')
+    return nocache
+
+
 def iter_items(spider, response, site_ids, schema_name):
     """
     populate items defined in schema

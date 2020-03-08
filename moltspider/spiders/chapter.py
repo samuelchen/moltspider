@@ -5,15 +5,11 @@ from datetime import timezone, timedelta, datetime
 from ..consts import (
     SiteSchemaKey as SSK, SchemaOtherKey as SOK,
     Spiders, Schemas, ArticleWeight, ArticleStatus,
-    ARTICLE_PREVIEW_CHAPTER_COUNT
+    ARTICLE_PREVIEW_CHAPTER_COUNT, MIN_DATE
 )
 from ..db import select, and_
 from ..parser import iter_items, urljoin
 from .base import MoltSpiderBase
-
-UTC = timezone.utc
-CST = timezone(timedelta(hours=8))
-MIN_DATE = datetime.min.replace(tzinfo=CST)
 
 log = logging.getLogger(__name__)
 
@@ -47,10 +43,9 @@ class ChapterSpider(MoltSpiderBase):
         stmt = stmt.where(
             and_(ta.c.weight >= ArticleWeight.PREVIEW, ta.c.done == False, ta.c.status <= ArticleStatus.PROGRESS))
         stmt = stmt.order_by(ta.c.weight.desc(), ta.c.recommends.desc(), ta.c.id)
-        LIMIT_ARTICLES = self.settings.get('LIMIT_ARTICLES', 0)
-        if LIMIT_ARTICLES > 0:
-            stmt = stmt.limit(LIMIT_ARTICLES)
-            log.warning('Limit %s articles. Others wll be ignored.' % LIMIT_ARTICLES)
+        if self.limit_articles > 0:
+            stmt = stmt.limit(self.limit_articles)
+            # log.warning('Limit %s articles. Others wll be ignored.' % self.limit_articles)
 
         rs = self.db.conn.execute(stmt)
 

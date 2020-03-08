@@ -2,7 +2,12 @@ from abc import ABC
 import scrapy
 import logging
 from ..db import Database
-from ..parser import SiteSchemas, arg_get_site_ids, args_get_index_ids, args_get_article_ids
+from ..parser import (
+    SiteSchemas,
+    arg_get_site_ids, args_get_index_ids, args_get_article_ids,
+    args_get_chapter_from_to, args_get_count, args_get_nocache
+)
+
 from ..consts import SiteSchemaKey as SSK
 from urllib.parse import urlparse
 log = logging.getLogger(__name__)
@@ -21,7 +26,9 @@ class MoltSpiderBase(scrapy.Spider, ABC):
         self.site_ids = arg_get_site_ids(**kwargs)
         self.index_ids = args_get_index_ids(**kwargs)
         self.article_ids = args_get_article_ids(**kwargs)
-        self.nocache = 'nocache' in args
+        self.limit_pages, self.limit_articles, self.limit_chapters = args_get_count(**kwargs)
+        self.chapter_from_id, self.chapter_to_id = args_get_chapter_from_to(**kwargs)
+        self.nocache = args_get_nocache(*args, **kwargs)
         # self.allowed_domains = [urlparse(SiteSchemas[s].get(SSK.URL.code))[1].lstrip('www.') for s in self.site_ids]
 
     def __init_db(self):

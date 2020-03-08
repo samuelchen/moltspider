@@ -2,7 +2,7 @@
 import scrapy
 import logging
 from ..consts import (
-    SiteSchemaKey as SSK, Spiders, Schemas,ArticleWeight,
+    SiteSchemaKey as SSK, Spiders, Schemas, ArticleWeight,
     ARTICLE_PREVIEW_CHAPTER_COUNT
 )
 from ..db import select, and_, not_, func
@@ -46,12 +46,12 @@ class TocSpider(MoltSpiderBase):
             stmt = stmt.where(ta.c.site.in_(self.site_ids))
         stmt = stmt.where(and_(ta.c.weight >= ArticleWeight.TOC_PREVIEW, not_(ta.c.id.in_(stmt_lock))))
         stmt = stmt.order_by(ta.c.weight.desc(), ta.c.recommends.desc(), ta.c.id)
-        LIMIT_ARTICLES = self.settings.get('LIMIT_ARTICLES', 0)
-        if LIMIT_ARTICLES > 0:
-            stmt = stmt.limit(LIMIT_ARTICLES)
-            log.warning('Limit %s articles. Others wll be ignored.' % LIMIT_ARTICLES)
+        if self.limit_articles > 0:
+            stmt = stmt.limit(self.limit_articles)
+            # log.warning('Limit %s articles. Others wll be ignored.' % self.limit_articles)
 
         rs = self.db.conn.execute(stmt)
+        rs = rs.fetchall()
 
         # loop unlock articles
         for r in rs:
@@ -75,7 +75,6 @@ class TocSpider(MoltSpiderBase):
             else:
                 log.warning('[%s] %s(id=%s) was locked by other spider.' % (r[ta.c.site], r[ta.c.name], r[ta.c.id]))
 
-        rs.close()
 
     def parse(self, response):
 
@@ -92,7 +91,7 @@ class TocSpider(MoltSpiderBase):
 
         ta = self.db.DB_t_article
         r = response.meta['record']
-        conn = self.db.create_connection()
+        conn = self.db.connect()
 
         # whether standalone table
         chapter_table, tc, table_alone = self.db.get_chapter_table_name_def_alone(r)
@@ -198,7 +197,7 @@ class TocSpider(MoltSpiderBase):
         existed_chapters = set()
         existed_sections = set()
 
-        conn = self.db.create_connection()
+        conn = self.db.connect()
 
         # finished chapters
         tc = table_def
