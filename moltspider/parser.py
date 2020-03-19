@@ -29,6 +29,10 @@ def load_site_schemas():
     schemas = {}
 
     for path in search_path:
+        if not os.path.exists(path):
+            log.warning('Path %s not found.' % path)
+            continue
+
         for top, dirs, files in os.walk(path, followlinks=True):
             for fname in files:
                 if fname.endswith('.json'):
@@ -44,6 +48,7 @@ def load_site_schemas():
                 else:
                     log.debug('Ignore site schema %s in %s' % (fname, top))
 
+    log.warning('Loaded sites: %s' % list(schemas.keys()))
     return schemas
 
 
