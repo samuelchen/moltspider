@@ -38,7 +38,9 @@ app = Flask(__name__, static_folder=static_base_symbol_link, static_url_path=sta
 
 MD_PREFIX = '<!--md-->'
 
-colspan = 5
+# IS_PREVIEW = bool(os.environ.get('MOLTSPIDER_READER_PREVIEW', False))
+
+
 # font_em = 0.9
 album_w = 80
 album_h = 100
@@ -54,7 +56,7 @@ template_page = '''
     font-family : MS Yahei, Consolas, Courier New;
   }
 
-  body, pre, p, div, input {
+  body, pre, p, div, li, input, select {
       font-size: 0.9em;
   }
   
@@ -109,6 +111,7 @@ def index():
     }
     db = Database()
 
+    colspan = request.args.get('col', default=6, type=int)
     i = 0
     odd = False
     sb = []
@@ -177,12 +180,23 @@ def index():
     return resp
 
 
-@app.route('/i/<int:iid>', methods=['GET'])
+@app.route('/i/<int:iid>', methods=['GET', 'POST'])
 def article_index(iid):
+    is_preview = request.args.get('preview', default=False, type=bool)
+    colspan = 6 if is_preview else 5
+    colspan = request.args.get('col', default=colspan, type=int)
+    if not 0 < colspan <= 8:
+        colspan = 6 if is_preview else 5
+    toc = request.args.get('toc', default=10, type=int)
+    if not 0 < toc <= 30:
+        toc = 10
+
     context = {
         "encoding": 'utf-8'
     }
     db = Database()
+
+    updated_aid = handle_rate_form(request, db=db)
 
     try:
         ta = db.DB_t_article
@@ -190,32 +204,61 @@ def article_index(iid):
         stmt = select([ti.c.site + ' - ' + ti.c.text]).where(ti.c.id == iid)
         itext = db.conn.execute(stmt).scalar() or iid
 
+        cellwidth = 100 / colspan
         i = 0
         odd = True
-
         sb = []
 
         sb.append('<h3 align="center">%s</h3>' % itext)
-        sb.append('<p align="center"><a href="/">返回首页</a></p>\n')
+        sb.append('<p align="center"><a href="/">返回首页</a> <span>query: preview-预览, col-每列行数(1-8), toc-列章节数(1-30)<span></p>\n')
         sb.append('<table align="center" width="95%" cellpadding="5">')
 
         stmt = select([ta.c.id, ta.c.site, ta.c.name, ta.c.author, ta.c.category, ta.c.length, ta.c.status, ta.c.desc,
                        ta.c.cover, ta.c.recommends, ta.c.favorites, ta.c.recommends_month, ta.c.done, ta.c.update_on,
-                       ta.c.chapter_table, ta.c.timestamp]
+                       ta.c.chapter_table, ta.c.weight, ta.c.timestamp]
                       ).where(ta.c.iid == iid).order_by(ta.c.update_on.desc())
         rs = db.conn.execute(stmt)
         for r in rs:
+
+            if is_preview:
+                chapter_table, tc, table_alone = db.get_chapter_table_name_def_alone(r)
+
+                if chapter_table and db.exist_table(chapter_table):
+                    # get article toc
+                    stmt = select([tc.c.id, tc.c.name, tc.c.is_section])  # .where(tc.c.content!=None)
+                    if not table_alone:
+                        stmt = stmt.where(tc.c.aid == r[ta.c.id])
+                    stmt = stmt.order_by(tc.c.id).limit(toc)
+                    rs1 = db.conn.execute(stmt)
+                else:
+                    rs1 = None
+
             if i % colspan == 0:
                 sb.append('<tr style="%s;">' % 'background-color:#eee' if odd else '')
                 odd = not odd
 
-            sb.append('<td align="right"><img src="%s/%s/%s" width="80px" height="100px"></td><td>' % (
-                album_url_path, site_for_url(r[ta.c.site]), r[ta.c.cover] or ''
-            ))
+            if is_preview:
+                pass
+            else:
+                sb.append('<td align="right"><img src="%s/%s/%s" width="%dpx" height="%dpx"></td>' % (
+                    album_url_path, site_for_url(r[ta.c.site]), r[ta.c.cover] or '', album_w, album_h
+                ))
+
+            sb.append('<td id="a%s" width="%d%%">' % (r[ta.c.id], cellwidth))
             sb.append('<h4>%(id)s <a title="%(desc)s" href="/%(id)s/">%(name)s</a></h4>' % r)
-            sb.append('<li>作者: <a href="/author/%(author)s/">%(author)s</a></li>' % r)
-            sb.append('<li>类型: %(category)s</li><li>%(length)s 字</li><li>状态:%(status)s 完成:%(done)s</li>' % r)
-            sb.append('<li>%s</li></td>' % r[ta.c.update_on].strftime('%x'))
+            if is_preview:
+                sb.append('<div style="word-wrap:break-word;">%s</div>' % (r[ta.c.desc] or ''))
+                render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id])
+                if rs1:
+                    for r1 in rs1:
+                        sb.append('<li>%s</li>' % r1[tc.c.name])
+                    rs1.close()
+                    del rs1
+            else:
+                sb.append('<li>作者: <a href="/author/%(author)s/">%(author)s</a></li>' % r)
+                sb.append('<li>类型: %(category)s</li><li>%(length)s 字</li><li>状态:%(status)s 完成:%(done)s</li>' % r)
+                sb.append('<li>%s</li></td>' % r[ta.c.update_on].strftime('%x'))
+            sb.append('</td>')
             i += 1
             if i % colspan == 0:
                 sb.append('</tr>')
@@ -224,6 +267,14 @@ def article_index(iid):
             sb.append('<tr style="background-color:#eee"><td> 还未上传 </td></tr>')
 
         sb.append('</table>')
+        if updated_aid:
+            sb.append('''
+            <script>
+                window.location = window.location.protocol + '//' + window.location.host + 
+                    window.location.pathname + window.location.search + '#a%s';
+            </script>
+            ''' % updated_aid)
+
         content = '\n'.join(sb)
     except Exception as err:
         content = '<p class="error">' + str(err) + '</p>'
@@ -237,6 +288,9 @@ def article_index(iid):
 
 @app.route('/<int:aid>/', methods=['GET', 'POST'])
 def article_page(aid):
+
+    colspan = request.args.get('col', default=5, type=int)
+
 
     context = {
         "encoding": 'utf-8'
@@ -260,7 +314,7 @@ def article_page(aid):
 
         chapter_table, tc, table_alone = db.get_chapter_table_name_def_alone(ra)
 
-        if db.exist_table(chapter_table):
+        if chapter_table and db.exist_table(chapter_table):
             # get article toc
             stmt = select([tc.c.id, tc.c.name, tc.c.is_section])#.where(tc.c.content!=None)
             if not table_alone:
@@ -273,6 +327,7 @@ def article_page(aid):
         i = 0
         odd = True
         sb = []
+
         sb.append('<h3 align="center">%(name)s</h3>' % ra)
         sb.append('<p align="center"><a href="/i/%(iid)s">返回索引</a></p>\n' % ra)
         render_rate_form(sb, aweight=ra[ta.c.weight], astatus=ra[ta.c.status])
@@ -306,7 +361,7 @@ def article_page(aid):
     return resp
 
 
-@app.route('/<int:aid>/<int:cid>/', methods=['GET'])
+@app.route('/<int:aid>/<int:cid>/', methods=['GET', 'POST'])
 def chapter(aid, cid):
     context = {
         "encoding": 'utf-8'
@@ -374,10 +429,8 @@ def chapter(aid, cid):
         document.onkeydown = key_pressed;
         var prev_page="{0}";
         var next_page="{1}";
-        console.log(document.cookie);
         var size = document.cookie ? document.cookie.split('=')[1] : document.all["content"].style['font-size'];
         size = parseInt(size);
-        console.log(size);
         document.all["content"].style['font-size'] = size + 'px'; 
         function key_pressed(event) {{
           if (event.keyCode==37) location=prev_page;
@@ -414,16 +467,29 @@ def chapter(aid, cid):
     return resp
 
 
-def render_rate_form(string_builder_list, aweight, astatus):
+@app.route('/rate/<int:aid>/', methods=['POST'])
+def rate_article(aid):
+    db = Database()
+    ta = db.DB_t_article
+
+    # POST
+    handle_rate_form(request, aid, db)
+
+    return None
+
+
+def render_rate_form(string_builder_list, aweight, astatus, aid=''):
     sb = string_builder_list
     # rate it.
-    sb.append('<center><form id="rate" method="post">')
-    sb.append('<select name="aweight" onchange="form.submit()">')
+    sb.append('<center><form id="rate%s" method="post">' % aid)
+    if aid:
+        sb.append('<input type="hidden" name="aid" value="%s">' % aid)
+    sb.append('<select name="aweight" style="width:100px" onchange="form.submit()">')
     for o in ArticleWeight.all:
         sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == aweight else ''))
     sb.append('</select>')
-    sb.append('<select name="astatus" onchange="form.submit()">')
+    sb.append('<select name="astatus" style="width:100px" onchange="form.submit()">')
     for o in ArticleStatus.all:
         sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == astatus else ''))
@@ -431,13 +497,19 @@ def render_rate_form(string_builder_list, aweight, astatus):
     sb.append('</form></center>')
 
 
-def handle_rate_form(request, aid, db=None):
+def handle_rate_form(request, aid='', db=None):
     if db is None:
         db = Database.get_inst()
 
     ta = Database.DB_t_article
     if request.method == 'POST':
         fields = {}
+
+        if not aid:
+            aid = request.form.get('aid')
+            if not aid:
+                raise Exception('aid not provided.')
+
         aweight = request.form.get('aweight')
         if aweight:
             fields[ta.c.weight.name] = int(aweight)
@@ -448,6 +520,8 @@ def handle_rate_form(request, aid, db=None):
         if fields:
             stmt = ta.update().values(**fields).where(ta.c.id == aid)
             db.execute(stmt)
+
+        return aid
 
 
 if __name__ == "__main__":
