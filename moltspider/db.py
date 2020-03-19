@@ -269,12 +269,16 @@ class Database(object):
 
         chapter_table = ra[ta.c.chapter_table]
         site = ra[ta.c.site]
-        table_alone = True if chapter_table else False
-        if table_alone:
-            tc = self.get_db_t_chapter(chapter_table)
+
+        if chapter_table is None:
+            return None, None, None
         else:
-            chapter_table = self.gen_site_chapter_table_name(site)
-            tc = self.get_db_t_site_chapter(chapter_table)
+            table_alone = True if chapter_table else False
+            if table_alone:
+                tc = self.get_db_t_chapter(chapter_table)
+            else:
+                chapter_table = self.gen_site_chapter_table_name(site)
+                tc = self.get_db_t_site_chapter(chapter_table)
 
         return chapter_table, tc, table_alone
 

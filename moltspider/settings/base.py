@@ -159,11 +159,6 @@ DB_CONNECTION_STRING = 'sqlite:///' + os.path.join(BASE_DIR, 'article.sqlite3')
 HOSTNAME = socket.gethostname()
 SPIDER_ID = HOSTNAME
 
-# NOTICE: limitation is total across site, index, article
-# how many pages will be parsed when crawling articles from index page (spider: LIST). 0 = no limitation
-LIMIT_INDEX_PAGES = 1
-# how many articles will be impacted when crawling articles info (spider: META, TOC, CHAPTER). 0 = no limitation
-LIMIT_ARTICLES = 1
 # how many chapters will be crawled (article chapters). 0 = no limitation
 LIMIT_CHAPTERS = 2
 

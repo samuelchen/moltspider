@@ -94,12 +94,13 @@ class ArticleWeight(Options):
 
 
 class ArticleStatus(Options):
-    DELETED = 200, _('Deleted.')
-    COMPLETE = 100, _('Completed article.')
-    TERMINATED = 80, _('Mark done by editor')
-    ABANDON = 60, _('Abandoned by author (no updates for 180 days)')
-    PENDING = 40, _('Pending to be finished/abandoned (no updates for 30 days)')
-    SLOW = 30, _('Slow updating (no updates for 7 days)')
+    COMPLETE = 200, _('Completed article.')
+    TERMINATED = 100, _('Mark done by editor')
+    ABANDON = 80, _('Abandoned by author (no updates for 180 days)')
+    PENDING = 60, _('Pending to be finished/abandoned (no updates for 30 days)')
+    SLOW = 40, _('Slow updating (no updates for 7 days)')
     PROGRESS = 20, _('Keep updating in progress')
-    INCLUDED = 0, _('Added to database')
+    INCLUDED = 0, _('Added to database. Do not update')
+    DELETED = -100, _('Deleted.')
+
 

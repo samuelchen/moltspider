@@ -62,13 +62,24 @@ broad spider for all kinds of site
     * `ac`: count of articles will be crawled.
     * `cc`: chapters of articles will be crawled.
 
-    * remember last crawled. use `scrap states` 
+* Available arguments for spiders
+
+    * index - `s`
+    * list - `s`, `i`, `p`
+    * meta - `s`, `i`, `a`, `p`, `ac`
+    * toc - `s`, `i`, `a`, `p` (todo), `ac`, `cc`
+    * chapter - `s`, `i`, `a`, `ac`, `p` (todo)
     
-        `scrapy crawl list -s JOBDIR=./path/to/state/list-1`
-        
-        `scrapy crawl meta -s JOBDIR=./path/to/state/novel-1`
-        
-        `scrapy crawl chapter -s JOBDIR=./path/to/state/novel-1`
+    `nocache` available for all spiders.
+
+* remember last crawled. use `scrap states` 
+
+    `scrapy crawl list -s JOBDIR=./path/to/state/list-1`
+    
+    `scrapy crawl meta -s JOBDIR=./path/to/state/novel-1`
+    
+    `scrapy crawl chapter -s JOBDIR=./path/to/state/novel-1`
+
 
 ## To simply read the articles (test purpose) 
 

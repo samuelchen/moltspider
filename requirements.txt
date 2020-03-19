@@ -5,7 +5,7 @@ scrapy >= 1.8.0
 sqlalchemy >= 1.3.13
 optenum == 1.1.7
 python-dateutil == 2.8.1
-plugin-base == 1.0.0
+pluginbase == 1.0.0
 
 #psycopg2   #renamed to psycopg2-binary
 # window (py3.4):
@@ -25,6 +25,9 @@ beautifulsoup4 >= 4.8.2
 
 # gen slug for file
 python-slugify[unidecode] >= 4.0.0
+
+# validate sites schema
+json-schema == 3.2.0
 
 # reader
 flask >= 1.1.1

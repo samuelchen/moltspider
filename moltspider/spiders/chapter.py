@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 import scrapy
 import logging
-from datetime import timezone, timedelta, datetime
 from ..consts import (
     SiteSchemaKey as SSK, SchemaOtherKey as SOK,
     Spiders, Schemas, ArticleWeight, ArticleStatus,
-    ARTICLE_PREVIEW_CHAPTER_COUNT, MIN_DATE
+    ARTICLE_PREVIEW_CHAPTER_COUNT
 )
 from ..db import select, and_
 from ..parser import iter_items, urljoin
@@ -40,9 +39,9 @@ class ChapterSpider(MoltSpiderBase):
             stmt = stmt.where(ta.c.id.in_(self.article_ids))
         if self.index_ids:
             stmt = stmt.where(ta.c.iid.in_(self.index_ids))
-        stmt = stmt.where(
-            and_(ta.c.weight >= ArticleWeight.PREVIEW, ta.c.done == False, ta.c.status <= ArticleStatus.PROGRESS))
-        stmt = stmt.order_by(ta.c.weight.desc(), ta.c.recommends.desc(), ta.c.id)
+        stmt = stmt.where(and_(ta.c.weight >= ArticleWeight.PREVIEW, ta.c.done == False))
+        stmt = stmt.where(and_(ta.c.status >= ArticleStatus.PROGRESS, ta.c.status < ArticleStatus.ABANDON))
+        stmt = stmt.order_by(ta.c.weight.desc(), ta.c.id)
         if self.limit_articles > 0:
             stmt = stmt.limit(self.limit_articles)
             # log.warning('Limit %s articles. Others wll be ignored.' % self.limit_articles)

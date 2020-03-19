@@ -70,7 +70,7 @@ def arg_get_site_ids(**kwargs):
             log.warning('"%s" is not a supported site.' % s)
 
     if site_ids:
-        log.warning('Sites are limited in: %s' % site_ids)
+        log.warning('Limit sites in: %s' % site_ids)
 
     return site_ids
 
@@ -84,7 +84,7 @@ def args_get_article_ids(**kwargs):
         articles = []
 
     if articles:
-        log.warning('Articles are limited in: %s' % articles)
+        log.warning('Limit articles in: %s' % articles)
 
     return articles
 
@@ -98,7 +98,7 @@ def args_get_index_ids(**kwargs):
         indexes = []
 
     if indexes:
-        log.warning('Indexes are limited in: %s' % indexes)
+        log.warning('Limit indexes in: %s' % indexes)
 
     return indexes
 
@@ -139,7 +139,7 @@ def args_get_nocache(*args, **kwargs):
 
     nocache = Args.NOCACHE.code in args
     if nocache:
-        log.warning('Disable cache in this crawl.')
+        log.warning('Disable cache in this crawling.')
     return nocache
 
 

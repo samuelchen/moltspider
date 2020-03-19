@@ -24,6 +24,8 @@ class MetaSpider(MoltSpiderBase):
         stmt = select([t.c.id, t.c.update_on])
         if self.site_ids:
             stmt = stmt.where(t.c.site.in_(self.site_ids))
+        if self.index_ids:
+            stmt = stmt.where(t.c.id.in_(self.index_ids))
         try:
             rs = self.db.conn.execute(stmt)
             for r in rs:
@@ -40,6 +42,8 @@ class MetaSpider(MoltSpiderBase):
         stmt = select([ta.c.id, ta.c.site, ta.c.iid, ta.c.name, ta.c.url, ta.c.weight, ta.c.update_on])
         if self.site_ids:
             stmt = stmt.where(ta.c.site.in_(self.site_ids))
+        if self.index_ids:
+            stmt = stmt.where(ta.c.iid.in_(self.index_ids))
         if self.article_ids:
             stmt = stmt.where(ta.c.id.in_(self.article_ids))
         stmt = stmt.where(ta.c.weight >= ArticleWeight.META)
@@ -98,9 +102,15 @@ class MetaSpider(MoltSpiderBase):
 
         log.debug('[%s] captured: %s %s' % (site, url, name))
 
+        # gen chapter table. if None, need generate.
+        # '' (empty) - a table per site
+        # not empty - a table per article
+        # None - not generated (spider meta not run on this article record)
         table_alone = self.site_schemas.get(site, {}).get(Schemas.META_PAGE, {}).get(SSK.TABLE_ALONE, False)
         if table_alone:
             it[ta.c.chapter_table.name] = self.db.gen_chapter_table_name(aid, site, name)
+        else:
+            it[ta.c.chapter_table.name] = ''
 
         # only yield item which is later than the date last updated or no date.
         if update_on == MIN_DATE or update_on > last_update_on:

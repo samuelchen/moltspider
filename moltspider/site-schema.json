@@ -1,0 +1,132 @@
+{
+   "$schema" : "http://json-schema.org/draft-07/schema#",
+   "$id" : "http://moltspider.com/site-schema.json",
+   "title" : "Moltspide supported site schema",
+   "type" : "object",
+   "properties" : [
+      {
+         "name" : "name",
+         "type" : "string",
+         "required" : true,
+         "description" : "Name of the site"
+      },
+      {
+         "name" : "url",
+         "type" : "string",
+         "required" : true,
+         "description" : "URL of the site"
+      },
+      {
+         "name" : "home",
+         "type" : "object",
+         "required" : true,
+         "description" : "Home page schema",
+         "$ref" : "#/definitions/page"
+      },
+      {
+         "name" : "index",
+         "type" : "object",
+         "required" : true,
+         "description" : "Index page schema (to select articles)",
+         "$ref" : "#/definitions/page"
+      },
+      {
+         "name" : "meta",
+         "type" : "object",
+         "required" : true,
+         "description" : "meta page schema (to select article meta)",
+         "$ref" : "#/definitions/page"
+      },
+      {
+         "name" : "toc",
+         "type" : "object",
+         "required" : true,
+         "description" : "TOC page schema (to select TOC of article)",
+         "$ref" : "#/definitions/page"
+      },
+      {
+         "name" : "chapter",
+         "type" : "object",
+         "required" : true,
+         "description" : "chapter page schema (to select one chapter content from chapter page)",
+         "$ref" : "#/definitions/page"
+      }
+   ],
+   "definitions" : {
+      "page" : {
+         "type" : "object",
+         "required" : true,
+         "description" : "page schema",
+         "properties" : [
+            {
+               "name" : "items",
+               "required" : true,
+               "type" : "array",
+               "description" : "items to select from the page (items can be combine or iterator depends on the page)",
+               "items" : [
+                  {
+                     "$ref" : "#./item"
+                  }
+               ]
+            }
+         ]
+      },
+      "item" : {
+         "type\t" : "object\r\n",
+         "required" : false,
+         "description" : "item schema",
+         "properties" : [
+            {
+               "$ref" : "#./comment"
+            },
+            {
+               "$ref\t" : "#./xpath"
+            },
+            {
+               "$ref" : "#./css"
+            },
+            {
+               "name" : "fields",
+               "required" : true,
+               "type" : "object",
+               "description" : "fields to select to combine into item",
+               "$ref" : "#./field"
+            }
+         ]
+      },
+      "field" : {
+         "type" : "object",
+         "required" : true,
+         "description" : "schema to define how field selected",
+         "properties" : [
+            {
+               "$ref" : "#./comment"
+            },
+            {
+               "$ref\t" : "#./xpath"
+            },
+            {
+               "$ref" : "#./css"
+            }
+         ]
+      },
+      "comment\r\n" : {
+         "name" : "//",
+         "required" : false,
+         "type" : "string",
+         "description" : "Comment"
+      },
+      "xpath" : {
+         "name" : "xpath",
+         "required" : false,
+         "type" : "string",
+         "description" : "xpath query string to select the item/field"
+      },
+      "css" : {
+         "name" : "css",
+         "required" : false,
+         "type" : "string",
+         "description" : "css query string to select the item/field"
+      }
+   }
+}

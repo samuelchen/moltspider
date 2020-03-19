@@ -374,29 +374,32 @@ def chapter(aid, cid):
         document.onkeydown = key_pressed;
         var prev_page="{0}";
         var next_page="{1}";
+        console.log(document.cookie);
+        var size = document.cookie ? document.cookie.split('=')[1] : document.all["content"].style['font-size'];
+        size = parseInt(size);
+        console.log(size);
+        document.all["content"].style['font-size'] = size + 'px'; 
         function key_pressed(event) {{
           if (event.keyCode==37) location=prev_page;
           if (event.keyCode==39) location=next_page;
 
           if (event.keyCode==189 || event.keyCode == 109) {{
-                          console.log(document.all["content"].style);
-
-            size = parseInt(document.all["content"].style['font-size']);
+            // size = parseInt(document.all["content"].style['font-size']);
             size -= 2;
-
             if (size <= 8) size = 8;
-            document.all["content"].style['font-size'] = size + 'px';
           }}
           if (event.keyCode==187 || event.keyCode == 107) {{
-            size = parseInt(document.all["content"].style['font-size']);;
+            // size = parseInt(document.all["content"].style['font-size']);;
             size += 2;
             if (size >= 48) size = 68;
-            document.all["content"].style['font-size'] = size + 2 + 'px';
           }}
           if (event.keyCode==48) {{
-            document.all["content"].style['font-size'] = '22px';
+            size = 22;
           }}
+          document.all["content"].style['font-size'] = size + 'px';
+          document.cookie = "size=" + size + "; path=/";
         }}
+
         </script>
         '''.format(prev, nxt))
 
