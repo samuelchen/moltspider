@@ -91,7 +91,7 @@ class TocSpider(MoltSpiderBase):
             if aweight in [ArticleWeight.TOC_PREVIEW, ArticleWeight.PREVIEW] \
                     and acounter['total'] >= ARTICLE_PREVIEW_CHAPTER_COUNT:
                 log.warning('[%s] %s(id=%s) reaches %s limit(%s).' % (
-                    site, aname, _aid, ArticleWeight.get(aweight).name, ARTICLE_PREVIEW_CHAPTER_COUNT))
+                    site, aname, _aid, ArticleWeight.get_option_by_code(aweight).name, ARTICLE_PREVIEW_CHAPTER_COUNT))
                 return True
 
             # limit chapters
