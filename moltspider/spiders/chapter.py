@@ -40,7 +40,7 @@ class ChapterSpider(MoltSpiderBase):
         if self.index_ids:
             stmt = stmt.where(ta.c.iid.in_(self.index_ids))
         stmt = stmt.where(and_(ta.c.weight >= ArticleWeight.PREVIEW, ta.c.done == False))
-        stmt = stmt.where(and_(ta.c.status >= ArticleStatus.PROGRESS, ta.c.status < ArticleStatus.ABANDON))
+        stmt = stmt.where(and_(ta.c.status >= ArticleStatus.INCLUDED, ta.c.status < ArticleStatus.ABANDON))
         stmt = stmt.order_by(ta.c.weight.desc(), ta.c.id)
         if self.limit_articles > 0:
             stmt = stmt.limit(self.limit_articles)

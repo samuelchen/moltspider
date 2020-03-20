@@ -37,7 +37,7 @@ class TocSpider(MoltSpiderBase):
         # articles to be downloaded. Conditions:
         #   * weight >= TOC | TOC_PREVIEW
         #   * not locked by other spider
-        #   * ABANDON > status >= PROGRESS
+        #   * ABANDON > status >= INCLUDED
         stmt = select([ta.c.id, ta.c.site, ta.c.url, ta.c.name, ta.c.weight, ta.c.status,
                        ta.c.url_toc, ta.c.chapter_table, ta.c.update_on])
         if self.article_ids:
@@ -45,7 +45,7 @@ class TocSpider(MoltSpiderBase):
         elif self.site_ids:
             stmt = stmt.where(ta.c.site.in_(self.site_ids))
         stmt = stmt.where(and_(ta.c.weight >= ArticleWeight.TOC_PREVIEW, not_(ta.c.id.in_(stmt_lock))))
-        stmt = stmt.where(and_(ta.c.status >= ArticleStatus.PROGRESS, ta.c.status < ArticleStatus.ABANDON))
+        stmt = stmt.where(and_(ta.c.status >= ArticleStatus.INCLUDED, ta.c.status < ArticleStatus.ABANDON))
         stmt = stmt.order_by(ta.c.weight.desc(), ta.c.recommends.desc(), ta.c.id)
         if self.limit_articles > 0:
             stmt = stmt.limit(self.limit_articles)
