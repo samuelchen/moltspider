@@ -254,7 +254,7 @@ def article_index(iid):
             if is_preview:
                 sb.append('<h4>%(id)s <a href="/%(id)s/">%(name)s</a></h4>' % r)
                 sb.append('<div style="word-wrap:break-word;">%s</div>' % (r[ta.c.desc] or ''))
-                render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id], row=row)
+                render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id], row=row-1)
                 if rs1:
                     sb.append('<ul>')
                     for r1 in rs1:
