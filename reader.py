@@ -190,7 +190,7 @@ def article_index(iid):
     }
     db = Database()
 
-    updated_aid = handle_rate_form(request, db=db)
+    last_updated_row = handle_rate_form(db=db)
 
     try:
         ta = db.DB_t_article
@@ -200,6 +200,7 @@ def article_index(iid):
 
         cellwidth = 100 / colspan
         i = 0
+        row = 0
         odd = True
         sb = []
 
@@ -238,8 +239,9 @@ def article_index(iid):
                     rs1 = None
 
             if i % colspan == 0:
-                sb.append('<tr style="%s;">' % 'background-color:#eee' if odd else '')
+                sb.append('<tr id="r%s" style="%s;">' % (row, 'background-color:#eee' if odd else ''))
                 odd = not odd
+                row += 1
 
             if is_preview:
                 pass
@@ -252,7 +254,7 @@ def article_index(iid):
             if is_preview:
                 sb.append('<h4>%(id)s <a href="/%(id)s/">%(name)s</a></h4>' % r)
                 sb.append('<div style="word-wrap:break-word;">%s</div>' % (r[ta.c.desc] or ''))
-                render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id])
+                render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id], row=row)
                 if rs1:
                     sb.append('<ul>')
                     for r1 in rs1:
@@ -279,13 +281,13 @@ def article_index(iid):
             sb.append('<tr style="background-color:#eee"><td> 还未上传 </td></tr>')
 
         sb.append('</table>')
-        if updated_aid:
+        if last_updated_row:
             sb.append('''
             <script>
                 window.location = window.location.protocol + '//' + window.location.host + 
-                    window.location.pathname + window.location.search + '#a%s';
+                    window.location.pathname + window.location.search + '#r%s';
             </script>
-            ''' % updated_aid)
+            ''' % last_updated_row)
 
         sb.append('<hr><center>-- Page %s END --</center>' % page)
         content = '\n'.join(sb)
@@ -311,7 +313,7 @@ def article_page(aid):
     ta = db.DB_t_article
 
     # POST
-    handle_rate_form(request, aid, db)
+    handle_rate_form(aid, db)
 
     #  GET
     try:
@@ -381,7 +383,7 @@ def chapter(aid, cid):
     db = Database()
     ta = db.DB_t_article
 
-    handle_rate_form(request, aid, db)
+    handle_rate_form(aid, db)
 
     try:
         # load article information
@@ -632,12 +634,13 @@ def render_pagination_and_filters(string_builder_list, return_link='/', return_t
     # window.location.pathname + window.location.search + '#a%s';
 
 
-def render_rate_form(string_builder_list, aweight, astatus, aid=''):
+def render_rate_form(string_builder_list, aweight, astatus, aid='', row=''):
     sb = string_builder_list
     # rate it.
     sb.append('<center><form id="rate%s" method="post">' % aid)
     if aid:
         sb.append('<input type="hidden" name="aid" value="%s">' % aid)
+    sb.append('<input type="hidden" name="row" value="%s">' % row)
     sb.append('<select name="aweight" style="width:100px" onchange="form.submit()">')
     for o in ArticleWeight.all:
         sb.append('<option value="{0}" {2}>{0} - {1}</option>'.format(
@@ -651,7 +654,7 @@ def render_rate_form(string_builder_list, aweight, astatus, aid=''):
     sb.append('</form></center>')
 
 
-def handle_rate_form(request, aid='', db=None):
+def handle_rate_form(aid='', db=None):
     if db is None:
         db = Database.get_inst()
 
@@ -664,18 +667,19 @@ def handle_rate_form(request, aid='', db=None):
             if not aid:
                 raise Exception('aid not provided.')
 
+        row = request.form.get('row', default='')
         aweight = request.form.get('aweight')
-        if aweight:
+        if aweight is not None:
             fields[ta.c.weight.name] = int(aweight)
         astatus = request.form.get('astatus')
-        if astatus:
+        if astatus is not None:
             fields[ta.c.status.name] = int(astatus)
 
         if fields:
             stmt = ta.update().values(**fields).where(ta.c.id == aid)
             db.execute(stmt)
 
-        return aid
+        return row
 
 
 if __name__ == "__main__":
