@@ -11,7 +11,7 @@ from moltspider.db import Database
 from moltspider.parser import load_site_schemas
 from moltspider.consts import SiteSchemaKey as SSK, ArticleStatus, ArticleWeight
 from moltspider.utils import str_md5
-from sqlalchemy import select, and_, not_, func, between
+from sqlalchemy import select, and_, not_, func, between, text
 import markdown
 import logging
 
@@ -56,7 +56,7 @@ template_page = '''
     font-family : MS Yahei, Consolas, Courier New;
   }
 
-  body, pre, p, div, li, input, select {
+  body, pre, p, div, li, input, select, span {
       font-size: 0.9em;
   }
   
@@ -183,7 +183,7 @@ def index():
 @app.route('/i/<int:iid>', methods=['GET', 'POST'])
 def article_index(iid):
 
-    page, page_count, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to = get_request_query_args()
+    page, count_per_page, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to, order1, order2, filters = get_request_query_args()
 
     context = {
         "encoding": 'utf-8'
@@ -211,12 +211,16 @@ def article_index(iid):
 
         stmt = select([ta.c.id, ta.c.site, ta.c.name, ta.c.author, ta.c.category, ta.c.length, ta.c.status, ta.c.desc,
                        ta.c.cover, ta.c.recommends, ta.c.favorites, ta.c.recommends_month, ta.c.done, ta.c.update_on,
-                       ta.c.chapter_table, ta.c.weight, ta.c.timestamp]
+                       ta.c.chapter_table, ta.c.weight, ta.c.url, ta.c.timestamp]
                       ).where(ta.c.iid == iid)
         stmt = stmt.where(between(ta.c.weight, weight_from, weight_to))
         stmt = stmt.where(between(ta.c.status, status_from, status_to))
-        stmt = stmt.order_by(ta.c.update_on.desc())
-        stmt = stmt.offset(page_count * page).limit(page_count)
+        for fc, fo, fv in filters:
+            if fc and fo and fv:
+                stmt = stmt.where(text(fc + ' ' + fo + ' "' + fv + '"'))
+        stmt = stmt.order_by(text(order1[1:] + ' desc' if order1.startswith('-') else order1),
+                             text(order2[1:] + ' desc' if order2.startswith('-') else order2))
+        stmt = stmt.offset(count_per_page * page).limit(count_per_page)
         rs = db.conn.execute(stmt)
         for r in rs:
 
@@ -245,19 +249,27 @@ def article_index(iid):
                 ))
 
             sb.append('<td id="a%s" width="%d%%">' % (r[ta.c.id], cellwidth))
-            sb.append('<h4>%(id)s <a title="%(desc)s" href="/%(id)s/">%(name)s</a></h4>' % r)
             if is_preview:
+                sb.append('<h4>%(id)s <a href="/%(id)s/">%(name)s</a></h4>' % r)
                 sb.append('<div style="word-wrap:break-word;">%s</div>' % (r[ta.c.desc] or ''))
                 render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id])
                 if rs1:
+                    sb.append('<ul>')
                     for r1 in rs1:
                         sb.append('<li>%s</li>' % r1[tc.c.name])
                     rs1.close()
                     del rs1
+                    sb.append('</ul>')
             else:
-                sb.append('<li>作者: <a href="/author/%(author)s/">%(author)s</a></li>' % r)
+                sb.append('<h4>%(id)s <a title="%(desc)s" href="/%(id)s/">%(name)s</a></h4>' % r)
+                sb.append('<ul><li>作者: <a href="/author/%(author)s/">%(author)s</a></li>' % r)
                 sb.append('<li>类型: %(category)s</li><li>%(length)s 字</li><li>状态:%(status)s 完成:%(done)s</li>' % r)
-                sb.append('<li>%s</li></td>' % r[ta.c.update_on].strftime('%x'))
+                sb.append('<li>%s</li></ul></td>' % r[ta.c.update_on].strftime('%x'))
+
+            for fc, fo, fv in filters:
+                if fc:
+                    sb.append('<li>%s: %s</li>' % (fc, r[fc]))
+
             sb.append('</td>')
             i += 1
             if i % colspan == 0:
@@ -291,7 +303,6 @@ def article_index(iid):
 def article_page(aid):
 
     colspan = request.args.get('col', default=5, type=int)
-
 
     context = {
         "encoding": 'utf-8'
@@ -469,6 +480,7 @@ def chapter(aid, cid):
 
 
 def get_request_query_args():
+    ta = Database.DB_t_article
 
     is_preview = request.args.get('preview', default=False, type=bool)
     colspan = 6 if is_preview else 5
@@ -478,19 +490,34 @@ def get_request_query_args():
     toc = request.args.get('toc', default=10, type=int)
     if not 0 < toc <= 30:
         toc = 10
-    page_count = request.args.get('c', default=colspan*10, type=int)
+    count_per_page = request.args.get('c', default=colspan*10, type=int)
     page = request.args.get('p', default=0, type=int)
     weight_from = request.args.get('w1', default=ArticleWeight.LISTED, type=int)
     weight_to = request.args.get('w2', default=ArticleWeight.PREVIEW, type=int)
     status_from = request.args.get('s1', default=ArticleStatus.INCLUDED, type=int)
     status_to = request.args.get('s2', default=ArticleStatus.COMPLETE, type=int)
+    order1 = request.args.get('o1', default='', type=str)
+    order2 = request.args.get('o2', default='', type=str)
 
-    return page, page_count, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to
+    filters = []
+    for i in range(3):
+        f = (request.args.get('fc' + str(i), default='', type=str),
+             request.args.get('fo' + str(i), default='', type=str),
+             request.args.get('fv' + str(i), default='', type=str))
+        filters.append(f)
+
+    return page, count_per_page, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to, order1, order2, filters
 
 
 def render_pagination_and_filters(string_builder_list, return_link='/', return_text='返回'):
 
-    page, page_count, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to = get_request_query_args()
+    page, count_per_page, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to, order1, order2, filters = get_request_query_args()
+
+    ta = Database.DB_t_article
+    order_cols = (ta.c.id, ta.c.site, ta.c.weight, ta.c.status, ta.c.url, ta.c.category, ta.c.author,
+                  ta.c.recommends, ta.c.timestamp)
+    filter_cols = (ta.c.url, ta.c.name, ta.c.category, ta.c.author, ta.c.done, ta.c.recommends, ta.c.timestamp)
+    filter_operators = ('=', '>', '<', '>=', '<=', 'like', 'in')
 
     sb = string_builder_list
 
@@ -508,50 +535,96 @@ def render_pagination_and_filters(string_builder_list, return_link='/', return_t
 
     sb.append('<div id="filter" align="center">')
     sb.append('<form id="filter" method="GET">')
+
+    # return link
     sb.append('<a href="%s">%s</a>' % (return_link, return_text))
+
+    # pagination
     if prev_page >= 0:
         sb.append('<a href="%s">上页</a>' % prev_url)
     else:
         sb.append('上页')
-    sb.append('<label>去第<input type="number" width="50px" min=0 max=9999 name="p" value="%s">页</label>' % page)
-    sb.append('<a href="%s">下页</a>' % next_url)
-    
+    sb.append('<label>第<input type="number" width="50px" min=0 max=9999 name="p" value="%s">页</label>' % page)
+    sb.append('<a href="%s" title="下页无终止检查，请自行注意完结">下页</a>' % next_url)
+
+    # count per page, cols per row
     sb.append(' | ')
-    sb.append('<label>每页<input type="number" width="30px" min=1 max=30 name="col" value="%s">篇</label>' % page_count)
+    sb.append('<label title="最大=列数*行数，最多20行">每页<input type="number" width="30px" min=0 max=%s name="c" value="%s">篇</label>' % (
+        colspan * 20, count_per_page))
     sb.append('<label>每行<input type="number" width="30px" min=1 max=8 name="col" value="%s">列</label>' % colspan)
 
-    sb.append('<button>Go</button>')
+    sb.append('<button style="background-color:yellow">Go</button>')
 
+    # weight
     sb.append('<select name="w1" style="width:40px" title="%s">' % weight_from)
     for o in ArticleWeight.all:
-        sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
+        sb.append('<option value="{0}" {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == weight_from else ''))
     sb.append('</select>')
     sb.append('<= 权重 <=')
     sb.append('<select name="w2" style="width:40px" title="%s">' % weight_to)
     for o in ArticleWeight.all:
-        sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
+        sb.append('<option value="{0}" {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == weight_to else ''))
     sb.append('</select>')
 
+    # status
     sb.append(' | ')
     sb.append('<select name="s1" style="width:40px" title="%s">' % status_from)
     for o in ArticleStatus.all:
-        sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
+        sb.append('<option value="{0}" {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == status_from else ''))
     sb.append('</select>')
     sb.append('<= 状态 <=')
     sb.append('<select name="s2" style="width:40px" title="%s">' % status_to)
     for o in ArticleStatus.all:
-        sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
+        sb.append('<option value="{0}" {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == status_to else ''))
     sb.append('</select>')
 
-    sb.append('<button>Go</button>')
+    sb.append('<button style="background-color:yellow">Go</button>')
 
+    # preview mode, toc count
     sb.append('<label>预览模式 <input type="checkbox" name="preview" %s></label>' % ('checked' if is_preview else ''))
     sb.append(' | ')
     sb.append('<label>目录<input type="number" width="30px" min=1 max=30 name="toc" value="%s">条</label>' % toc)
+
+    sb.append('<br>')
+
+    # filters
+    for i in range(len(filters)):
+        fc, fo, fv = filters[i]     # col, operator, value  of filters
+        sb.append('<label title="NOTICE: NO CHECK. use as your own RISK!!!">过滤%s:' % (i+1))
+        sb.append('<select name="fc%s" style="width:70px">' % i)
+        sb.append('<option value="" {0}></option>'.format('', 'selected' if '' == fc else ''))
+        for c in filter_cols:
+            sb.append('<option value="{0}" {1}>{0}</option>'.format(c.name, 'selected' if c.name == fc else ''))
+        sb.append('</select>')
+        sb.append('<select name="fo%s" style="width:70px">' % i)
+        sb.append('<option value="" {0}></option>'.format('', 'selected' if '' == fo else ''))
+        for op in filter_operators:
+            sb.append('<option value="{0}" {1}>{0}</option>'.format(op, 'selected' if op == fo else ''))
+        sb.append('</select>')
+        sb.append('<input name="fv%s" type="text" style="width:70px" value="%s"></label>' % (i, fv))
+        sb.append(' | ')
+
+    # order by
+    sb.append('<label>排序:')
+    sb.append('<select name="o1" style="width:70px" title="%s">' % order1)
+    sb.append('<option value="" {0}></option>'.format('', 'selected' if '' == order1 else ''))
+    for c in order_cols:
+        sb.append('<option value="{0}" {1}>{0}</option>'.format(c.name, 'selected' if c.name == order1 else ''))
+    for c in order_cols:
+        sb.append('<option value="-{0}" {1}>{0}↓</option>'.format(c.name, 'selected' if '-'+c.name == order1 else ''))
+    sb.append('</select>')
+    sb.append('<select name="o2" style="width:70px" title="%s">' % order2)
+    sb.append('<option value="" {0}></option>'.format('', 'selected' if '' == order2 else ''))
+    for c in order_cols:
+        sb.append('<option value="{0}" {1}>{0}</option>'.format(c.name, 'selected' if c.name == order2 else ''))
+    for c in order_cols:
+        sb.append('<option value="-{0}" {1}>{0}↓</option>'.format(c.name, 'selected' if '-'+c.name == order2 else ''))
+    sb.append('</select>')
+
 
     sb.append('</form>')
     sb.append('</div>')
@@ -567,12 +640,12 @@ def render_rate_form(string_builder_list, aweight, astatus, aid=''):
         sb.append('<input type="hidden" name="aid" value="%s">' % aid)
     sb.append('<select name="aweight" style="width:100px" onchange="form.submit()">')
     for o in ArticleWeight.all:
-        sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
+        sb.append('<option value="{0}" {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == aweight else ''))
     sb.append('</select>')
     sb.append('<select name="astatus" style="width:100px" onchange="form.submit()">')
     for o in ArticleStatus.all:
-        sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
+        sb.append('<option value="{0}" {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == astatus else ''))
     sb.append('</select>')
     sb.append('</form></center>')
