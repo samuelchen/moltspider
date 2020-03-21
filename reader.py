@@ -517,44 +517,41 @@ def render_pagination_and_filters(string_builder_list, return_link='/', return_t
     sb.append('<a href="%s">下页</a>' % next_url)
     
     sb.append(' | ')
+    sb.append('<label>每页<input type="number" width="30px" min=1 max=30 name="col" value="%s">篇</label>' % page_count)
     sb.append('<label>每行<input type="number" width="30px" min=1 max=8 name="col" value="%s">列</label>' % colspan)
 
     sb.append('<button>Go</button>')
 
-    sb.append('<label>权重在')
-    sb.append('<select name="w1" style="width:40px">')
+    sb.append('<select name="w1" style="width:40px" title="%s">' % weight_from)
     for o in ArticleWeight.all:
         sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == weight_from else ''))
     sb.append('</select>')
-    sb.append('与')
-    sb.append('<select name="w2" style="width:40px">')
+    sb.append('<= 权重 <=')
+    sb.append('<select name="w2" style="width:40px" title="%s">' % weight_to)
     for o in ArticleWeight.all:
         sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == weight_to else ''))
     sb.append('</select>')
-    sb.append('之间的</label>')
 
     sb.append(' | ')
-    sb.append('<label>状态在')
-    sb.append('<select name="s1" style="width:40px" >')
+    sb.append('<select name="s1" style="width:40px" title="%s">' % status_from)
     for o in ArticleStatus.all:
         sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == status_from else ''))
     sb.append('</select>')
-    sb.append('与')
-    sb.append('<select name="s2" style="width:40px" >')
+    sb.append('<= 状态 <=')
+    sb.append('<select name="s2" style="width:40px" title="%s">' % status_to)
     for o in ArticleStatus.all:
         sb.append('<option value={0} {2}>{0} - {1}</option>'.format(
             o.code, o.get_text(), 'selected' if o == status_to else ''))
     sb.append('</select>')
-    sb.append('之间</label>')
 
     sb.append('<button>Go</button>')
 
     sb.append('<label>预览模式 <input type="checkbox" name="preview" %s></label>' % ('checked' if is_preview else ''))
     sb.append(' | ')
-    sb.append('<label>目录<input type="number" width="30px" min=1 max=30 name="toc" value="%s">条</label>' % colspan)
+    sb.append('<label>目录<input type="number" width="30px" min=1 max=30 name="toc" value="%s">条</label>' % toc)
 
     sb.append('</form>')
     sb.append('</div>')
