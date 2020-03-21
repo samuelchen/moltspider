@@ -515,7 +515,7 @@ def render_pagination_and_filters(string_builder_list, return_link='/', return_t
 
     ta = Database.DB_t_article
     order_cols = (ta.c.id, ta.c.site, ta.c.weight, ta.c.status, ta.c.url, ta.c.category, ta.c.author,
-                  ta.c.recommends, ta.c.timestamp)
+                  ta.c.recommends, ta.c.update_on, ta.c.timestamp)
     filter_cols = (ta.c.url, ta.c.name, ta.c.category, ta.c.author, ta.c.done, ta.c.recommends, ta.c.timestamp)
     filter_operators = ('=', '>', '<', '>=', '<=', 'like', 'in')
 
