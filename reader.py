@@ -468,6 +468,7 @@ def render_article_index_page(site=None, iid=None):
                     base64.standard_b64encode(r[ta.c.site].encode()).decode(),
                     base64.standard_b64encode(r[ta.c.url].encode()).decode(),
                     Spiders.TOC, r[ta.c.id]))
+                sb.append(' | <a href="%s">原文</a>' % (SiteSchemas.get(r[ta.c.site]).get(SSK.URL.code) + r[ta.c.url]))
                 if rs1:
                     sb.append('<ul>')
                     for r1 in rs1:
@@ -522,7 +523,8 @@ def cached_page(site, url_path, spider_name='toc'):
 
     site = base64.standard_b64decode(site.encode()).decode()
     url_path = base64.standard_b64decode(url_path.encode()).decode()
-    url = SiteSchemas.get(site).get(SSK.URL) + url_path
+    url_site = SiteSchemas.get(site).get(SSK.URL)
+    url = url_site + url_path
     origin_encoding = SiteSchemas.get(site).get(SSK.ENCODING, 'utf-8')
     aid = request.args.get('aid', default=None, type=int)
 
@@ -587,7 +589,9 @@ def cached_page(site, url_path, spider_name='toc'):
             for item in iter_items(spider, scrapy_resp, [site, ], schema_name):
                 if i % colspan == 0:
                     sb.append('</tr><tr>')
-                sb.append('<td><a href="%(url)s">%(name)s</a></td>' % item)
+                item['_'] = url_site
+                sb.append('<td><a href="%(_)s%(url)s">%(name)s</a></td>' % item)
+                del item['_']
                 i += 1
             sb.append('</tr></table>')
             body = '\n'.join(sb)
