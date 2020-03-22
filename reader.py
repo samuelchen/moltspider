@@ -5,11 +5,12 @@ __author__ = 'samuel'
 
 import os
 import sys
+import base64
 from flask import Flask, request, render_template_string, make_response, url_for, redirect
 
 from moltspider.db import Database
 from moltspider.parser import SiteSchemas
-from moltspider.consts import SiteSchemaKey as SSK, ArticleStatus, ArticleWeight
+from moltspider.consts import SiteSchemaKey as SSK, ArticleStatus, ArticleWeight, Spiders
 from moltspider.utils import str_md5
 from sqlalchemy import select, and_, not_, func, between, text
 import markdown
@@ -105,7 +106,7 @@ template_page = '''
 
 
 @app.route('/', methods=['GET'])
-def index():
+def home():
     context = {
         "encoding": "utf-8"
     }
@@ -126,12 +127,12 @@ def index():
         stmt = select([ti.c.site, func.max(ti.c.update_on).label(ti.c.update_on.name), func.count(1).label('count')]
                       ).group_by(ti.c.site)
         rs = db.conn.execute(stmt)
-        sb.append('<h4 align="center">支持的网站</h4>')
+        sb.append('<h4 align="center">支持的网站 - <a href="/all">全部</a></h4>')
         sb.append('<ul style="list-style:none" align="left" width="95%" cellpadding="5">')
         for r in rs:
             site = r[ti.c.site]
             site_name = site_schemas.get(site, {}).get(SSK.NAME, site)
-            sb.append('<li style="display:inline;"><a href="#%s">%s</a> (%s类)' % (site, site_name, r['count']))
+            sb.append('<li style="display:inline;"><a href="/s/%s">%s</a> (%s类)' % (site, site_name, r['count']))
             sb.append(' %s</li> | ' % r[ti.c.update_on.name].strftime("%x"))
         sb.append('</ul>')
 
@@ -180,130 +181,19 @@ def index():
     return resp
 
 
+@app.route('/all', methods=['GET', 'POST'])
+def article_index():
+    return render_article_index_page()
+
+
 @app.route('/i/<int:iid>', methods=['GET', 'POST'])
-def article_index(iid):
+def index_home(iid):
+    return render_article_index_page(iid=iid)
 
-    page, count_per_page, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to, order1, order2, filters = get_request_query_args()
 
-    context = {
-        "encoding": 'utf-8'
-    }
-    db = Database()
-
-    last_updated_row = handle_rate_form(db=db)
-
-    try:
-        ta = db.DB_t_article
-        ti = db.DB_t_index
-        stmt = select([ti.c.site + ' - ' + ti.c.text]).where(ti.c.id == iid)
-        itext = db.conn.execute(stmt).scalar() or iid
-
-        cellwidth = 100 / colspan
-        i = 0
-        row = 0
-        odd = True
-        sb = []
-
-        sb.append('<h3 align="center">%s</h3>' % itext)
-        # sb.append('<div align="center"><a href="/">返回首页</a>')
-        # sb.append('<span>query: preview-预览, col-每列行数(1-8), toc-列章节数(1-30)<span></div>')
-        render_pagination_and_filters(sb, return_link='/', return_text='返回首页')
-        sb.append('<table align="center" width="95%" cellpadding="5">')
-
-        stmt = select([ta.c.id, ta.c.site, ta.c.name, ta.c.author, ta.c.category, ta.c.length, ta.c.status, ta.c.desc,
-                       ta.c.cover, ta.c.recommends, ta.c.favorites, ta.c.recommends_month, ta.c.done, ta.c.update_on,
-                       ta.c.chapter_table, ta.c.weight, ta.c.url, ta.c.timestamp]
-                      ).where(ta.c.iid == iid)
-        stmt = stmt.where(between(ta.c.weight, weight_from, weight_to))
-        stmt = stmt.where(between(ta.c.status, status_from, status_to))
-        for fc, fo, fv in filters:
-            if fc and fo and fv:
-                stmt = stmt.where(text(fc + ' ' + fo + ' "' + fv + '"'))
-        stmt = stmt.order_by(text(order1[1:] + ' desc' if order1.startswith('-') else order1),
-                             text(order2[1:] + ' desc' if order2.startswith('-') else order2))
-        stmt = stmt.offset(count_per_page * page).limit(count_per_page)
-        rs = db.conn.execute(stmt)
-        for r in rs:
-
-            if is_preview:
-                chapter_table, tc, table_alone = db.get_chapter_table_name_def_alone(r)
-
-                if chapter_table and db.exist_table(chapter_table):
-                    # get article toc
-                    stmt = select([tc.c.id, tc.c.name, tc.c.is_section])  # .where(tc.c.content!=None)
-                    if not table_alone:
-                        stmt = stmt.where(tc.c.aid == r[ta.c.id])
-                    stmt = stmt.order_by(tc.c.id).limit(toc)
-                    rs1 = db.conn.execute(stmt)
-                else:
-                    rs1 = None
-
-            if i % colspan == 0:
-                sb.append('<tr id="r%s" style="%s;">' % (row, 'background-color:#eee' if odd else ''))
-                odd = not odd
-                row += 1
-
-            if is_preview:
-                pass
-            else:
-                sb.append('<td align="right"><img src="%s/%s/%s" width="%dpx" height="%dpx"></td>' % (
-                    album_url_path, site_for_url(r[ta.c.site]), r[ta.c.cover] or '', album_w, album_h
-                ))
-
-            sb.append('<td id="a%s" width="%d%%">' % (r[ta.c.id], cellwidth))
-            if is_preview:
-                # TODO: link to directly preview page from scrapy cache.
-                sb.append('<h4>%(id)s <a href="/%(id)s/">%(name)s</a></h4>' % r)
-                sb.append('<div style="word-wrap:break-word;">%s</div>' % (r[ta.c.desc] or ''))
-                render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id], row=row-1)
-                if rs1:
-                    sb.append('<ul>')
-                    for r1 in rs1:
-                        sb.append('<li><a href="/%s/%s">%s</a></li>' % (r[ta.c.id], r1[tc.c.id], r1[tc.c.name]))
-                    rs1.close()
-                    del rs1
-                    sb.append('</ul>')
-            else:
-                sb.append('<h4>%(id)s <a title="%(desc)s" href="/%(id)s/">%(name)s</a></h4>' % r)
-                sb.append('<ul><li>作者: <a href="/author/%(author)s/">%(author)s</a></li>' % r)
-                sb.append('<li>类型: %(category)s</li><li>%(length)s 字</li><li>状态:%(status)s 完成:%(done)s</li>' % r)
-                sb.append('<li>%s</li></ul></td>' % r[ta.c.update_on].strftime('%x'))
-
-            for fc, fo, fv in filters:
-                if fc:
-                    origin_url = SiteSchemas.get(r[ta.c.site]).get('url') + r[ta.c.url]
-                    sb.append('<li>%s: <a href="%s">%s</a></li>' % (fc, origin_url, r[fc]))
-
-            sb.append('</td>')
-            i += 1
-            if i % colspan == 0:
-                sb.append('</tr>')
-
-        if rs.rowcount == 0:
-            sb.append('<tr style="background-color:#eee"><td> 还未上传 </td></tr>')
-
-        sb.append('</table>')
-
-        render_pagination_and_filters(sb, return_link='/', return_text='返回首页')
-
-        if last_updated_row:
-            sb.append('''
-            <script>
-                window.location = window.location.protocol + '//' + window.location.host + 
-                    window.location.pathname + window.location.search + '#r%s';
-            </script>
-            ''' % last_updated_row)
-
-        sb.append('<hr><center>-- Page %s END --</center>' % page)
-        content = '\n'.join(sb)
-    except Exception as err:
-        content = '<p class="error">' + str(err) + '</p>'
-        log.exception(err)
-
-    context['content'] = content
-    resp = make_response(render_template_string(template_page, **context))
-    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
-    return resp
+@app.route('/s/<string:site>', methods=['GET', 'POST'])
+def site_home(site):
+    return render_article_index_page(site=site)
 
 
 @app.route('/<int:aid>/', methods=['GET', 'POST'])
@@ -486,9 +376,232 @@ def chapter(aid, cid):
     return resp
 
 
-def get_request_query_args():
-    ta = Database.DB_t_article
+def render_article_index_page(site=None, iid=None):
 
+    page, count_per_page, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to, order1, order2, filters = get_request_query_args()
+
+    context = {
+        "encoding": 'utf-8'
+    }
+    db = Database()
+
+    last_updated_row = handle_rate_form(db=db)
+
+    try:
+        ta = db.DB_t_article
+        title = ''
+        if site:
+            title += SiteSchemas.get(site, {}).get(SSK.NAME, '')
+        if iid:
+            ti = db.DB_t_index
+            stmt = select([ti.c.site + ' - ' + ti.c.text])
+            stmt = stmt.where(ti.c.id == iid)
+            itext = db.conn.execute(stmt).scalar() or ('index %s' % iid)
+            if title:
+                title += ' - '
+            title += itext
+        if not title:
+            title = '全部小说'
+
+        cellwidth = 100 / colspan
+        i = 0
+        row = 0
+        odd = True
+        sb = []
+
+        sb.append('<h3 align="center">%s</h3>' % title)
+        render_pagination_and_filters(sb, return_link='/', return_text='返回首页')
+        sb.append('<table align="center" width="95%" cellpadding="5">')
+
+        stmt = select(
+            [ta.c.id, ta.c.site, ta.c.name, ta.c.author, ta.c.category, ta.c.length, ta.c.status, ta.c.desc,
+             ta.c.cover, ta.c.recommends, ta.c.favorites, ta.c.recommends_month, ta.c.done, ta.c.update_on,
+             ta.c.chapter_table, ta.c.weight, ta.c.url, ta.c.timestamp]
+            )
+        if site:
+            stmt = stmt.where(ta.c.site == site)
+        if iid:
+            stmt = stmt.where(ta.c.iid == iid)
+        stmt = stmt.where(between(ta.c.weight, weight_from, weight_to))
+        stmt = stmt.where(between(ta.c.status, status_from, status_to))
+        for fc, fo, fv in filters:
+            if fc and fo and fv:
+                stmt = stmt.where(text(fc + ' ' + fo + ' "' + fv + '"'))
+        stmt = stmt.order_by(text(order1[1:] + ' desc' if order1.startswith('-') else order1),
+                             text(order2[1:] + ' desc' if order2.startswith('-') else order2))
+        stmt = stmt.offset(count_per_page * page).limit(count_per_page)
+        rs = db.conn.execute(stmt)
+        for r in rs:
+
+            if is_preview:
+                chapter_table, tc, table_alone = db.get_chapter_table_name_def_alone(r)
+
+                if chapter_table and db.exist_table(chapter_table):
+                    # get article toc
+                    stmt = select([tc.c.id, tc.c.name, tc.c.is_section])  # .where(tc.c.content!=None)
+                    if not table_alone:
+                        stmt = stmt.where(tc.c.aid == r[ta.c.id])
+                    stmt = stmt.order_by(tc.c.id).limit(toc)
+                    rs1 = db.conn.execute(stmt)
+                else:
+                    rs1 = None
+
+            if i % colspan == 0:
+                sb.append('<tr id="r%s" style="%s;">' % (row, 'background-color:#eee' if odd else ''))
+                odd = not odd
+                row += 1
+
+            if is_preview:
+                pass
+            else:
+                sb.append('<td align="right"><img src="%s/%s/%s" width="%dpx" height="%dpx"></td>' % (
+                    album_url_path, site_for_url(r[ta.c.site]), r[ta.c.cover] or '', album_w, album_h
+                ))
+
+            sb.append('<td id="a%s" width="%d%%">' % (r[ta.c.id], cellwidth))
+            if is_preview:
+
+                sb.append('<h4>%(id)s <a href="/%(id)s/">%(name)s</a></h4>' % r)
+                sb.append('<div style="word-wrap:break-word;">%s</div>' % (r[ta.c.desc] or ''))
+                render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id], row=row - 1)
+                sb.append('<a href="/cache/%s/%s/%s/%s">原目录页缓存</a>' % (
+                    base64.standard_b64encode(r[ta.c.site].encode()).decode(),
+                    base64.standard_b64encode(r[ta.c.url].encode()).decode(),
+                    Spiders.TOC, r[ta.c.id]))
+                if rs1:
+                    sb.append('<ul>')
+                    for r1 in rs1:
+                        sb.append('<li><a href="/%s/%s">%s</a></li>' % (r[ta.c.id], r1[tc.c.id], r1[tc.c.name]))
+                    rs1.close()
+                    del rs1
+                    sb.append('</ul>')
+            else:
+                sb.append('<h4>%(id)s <a title="%(desc)s" href="/%(id)s/">%(name)s</a></h4>' % r)
+                sb.append('<ul><li>作者: <a href="/author/%(author)s/">%(author)s</a></li>' % r)
+                sb.append('<li>类型: %(category)s</li><li>%(length)s 字</li><li>状态:%(status)s 完成:%(done)s</li>' % r)
+                sb.append('<li>%s</li></ul></td>' % r[ta.c.update_on].strftime('%x'))
+
+            for fc, fo, fv in filters:
+                if fc:
+                    sb.append('<li>%s: %s</li>' % (fc, r[fc]))
+
+            sb.append('</td>')
+            i += 1
+            if i % colspan == 0:
+                sb.append('</tr>')
+
+        if rs.rowcount == 0:
+            sb.append('<tr style="background-color:#eee"><td> 还未上传 </td></tr>')
+
+        sb.append('</table>')
+
+        render_pagination_and_filters(sb, return_link='/', return_text='返回首页')
+
+        if last_updated_row:
+            sb.append('''
+            <script>
+                window.location = window.location.protocol + '//' + window.location.host + 
+                    window.location.pathname + window.location.search + '#r%s';
+            </script>
+            ''' % last_updated_row)
+
+        sb.append('<hr><center>-- Page %s END --</center>' % page)
+        content = '\n'.join(sb)
+    except Exception as err:
+        content = '<p class="error">' + str(err) + '</p>'
+        log.exception(err)
+
+    context['content'] = content
+    resp = make_response(render_template_string(template_page, **context))
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
+
+
+@app.route('/cache/<string:site>/<string:url_path>/<string:spider_name>/<int:aid>', methods=['GET', ])
+def cached_page(site, url_path, spider_name='toc', aid=None):
+
+    site = base64.standard_b64decode(site.encode()).decode()
+    url_path = base64.standard_b64decode(url_path.encode()).decode()
+    url = SiteSchemas.get(site).get(SSK.URL) + url_path
+    origin_encoding = SiteSchemas.get(site).get(SSK.ENCODING, 'utf-8')
+
+    from moltspider.consts import Schemas
+    from moltspider.parser import iter_items
+    from scrapy.utils.misc import load_object
+    from scrapy.utils.project import get_project_settings
+    from scrapy.http.request import Request
+    from scrapy.http.response.html import HtmlResponse
+    from scrapy.utils.gz import gunzip
+    from scrapy.downloadermiddlewares.httpcompression import ACCEPTED_ENCODINGS
+    try:
+        import brotli
+    except:
+        pass
+    import zlib
+    settings = get_project_settings()
+    storage = load_object(settings['HTTPCACHE_STORAGE'])(settings)
+
+    body = None
+    spider_req = Request(url)
+    if spider_name == Spiders.META:
+        from moltspider.spiders.meta import MetaSpider
+        spider = MetaSpider()
+        schema_name = Schemas.META_PAGE
+    elif spider_name == Spiders.TOC:
+        from moltspider.spiders.toc import TocSpider
+        spider = TocSpider
+        schema_name = Schemas.TOC_PAGE
+    else:
+        raise Exception('No support for spider "%s"\'s cache page' % spider_name)
+
+    cachedresponse = storage.retrieve_response(spider, spider_req)
+    if cachedresponse:
+        content_encoding = cachedresponse.headers.getlist('Content-Encoding')
+        if content_encoding:
+            encoding = content_encoding.pop()
+            if encoding == b'gzip' or encoding == b'x-gzip':
+                body = gunzip(cachedresponse.body)
+
+        if encoding == b'deflate':
+            try:
+                body = zlib.decompress(body)
+            except zlib.error:
+                # ugly hack to work with raw deflate content that may
+                # be sent by microsoft servers. For more information, see:
+                # http://carsten.codimi.de/gzip.yaws/
+                # http://www.port80software.com/200ok/archive/2005/10/31/868.aspx
+                # http://www.gzip.org/zlib/zlib_faq.html#faq38
+                body = zlib.decompress(body, -15)
+        if encoding == b'br' and b'br' in ACCEPTED_ENCODINGS:
+            body = brotli.decompress(body)
+
+    if body:
+        if spider_name == Spiders.TOC and aid:
+            sb = []
+            colspan = 5
+            i = 0
+            scrapy_resp = HtmlResponse(url)
+            scrapy_resp = scrapy_resp.replace(body=body, encoding=origin_encoding)
+            sb.append('<table width="90%" align="center"><tr>')
+            for item in iter_items(spider, scrapy_resp, [site, ], schema_name):
+                if i % colspan == 0:
+                    sb.append('</tr><tr>')
+                sb.append('<td><a href="%(url)s">%(name)s</a></td>' % item)
+                i += 1
+            sb.append('</tr></table>')
+            body = '\n'.join(sb)
+            body = render_template_string(template_page, content=body)
+        else:
+            body = body.decode(encoding=origin_encoding)
+    else:
+        body = '%s (%s) not found in cache.' % (url, origin_encoding)
+
+    resp = make_response(body)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
+
+
+def get_request_query_args():
     is_preview = request.args.get('preview', default=False, type=bool)
     colspan = 6 if is_preview else 5
     colspan = request.args.get('col', default=colspan, type=int)
