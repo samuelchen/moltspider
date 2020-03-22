@@ -464,7 +464,7 @@ def render_article_index_page(site=None, iid=None):
                 sb.append('<h4>%(id)s <a href="/%(id)s/">%(name)s</a></h4>' % r)
                 sb.append('<div style="word-wrap:break-word;">%s</div>' % (r[ta.c.desc] or ''))
                 render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id], row=row - 1)
-                sb.append('<a href="/cache/%s/%s/%s/%s">原目录页缓存</a>' % (
+                sb.append('<a href="/cache/%s/%s/%s?aid=%s">原目录页缓存</a>' % (
                     base64.standard_b64encode(r[ta.c.site].encode()).decode(),
                     base64.standard_b64encode(r[ta.c.url].encode()).decode(),
                     Spiders.TOC, r[ta.c.id]))
@@ -517,13 +517,14 @@ def render_article_index_page(site=None, iid=None):
     return resp
 
 
-@app.route('/cache/<string:site>/<string:url_path>/<string:spider_name>/<int:aid>', methods=['GET', ])
-def cached_page(site, url_path, spider_name='toc', aid=None):
+@app.route('/cache/<string:site>/<string:url_path>/<string:spider_name>', methods=['GET', ])
+def cached_page(site, url_path, spider_name='toc'):
 
     site = base64.standard_b64decode(site.encode()).decode()
     url_path = base64.standard_b64decode(url_path.encode()).decode()
     url = SiteSchemas.get(site).get(SSK.URL) + url_path
     origin_encoding = SiteSchemas.get(site).get(SSK.ENCODING, 'utf-8')
+    aid = request.args.get('aid', default=None, type=int)
 
     from moltspider.consts import Schemas
     from moltspider.parser import iter_items
