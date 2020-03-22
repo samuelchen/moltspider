@@ -76,7 +76,7 @@ template_page = '''
     border: 0px;
     background-color: #eee;
     width: 90%;
-    // max-width: 960px;
+    max-width: 976px;
     min-width: 320px;
     margin: auto;
   }
@@ -581,11 +581,11 @@ def cached_page(site, url_path, spider_name='toc'):
     if body:
         if spider_name == Spiders.TOC and aid:
             sb = []
-            colspan = 5
+            colspan = 4
             i = 0
             scrapy_resp = HtmlResponse(url)
             scrapy_resp = scrapy_resp.replace(body=body, encoding=origin_encoding)
-            sb.append('<table width="90%" align="center"><tr>')
+            sb.append('<table width="1000px" align="center"><tr>')
             for item in iter_items(spider, scrapy_resp, [site, ], schema_name):
                 if i % colspan == 0:
                     sb.append('</tr><tr>')
