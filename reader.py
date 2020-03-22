@@ -8,7 +8,7 @@ import sys
 from flask import Flask, request, render_template_string, make_response, url_for, redirect
 
 from moltspider.db import Database
-from moltspider.parser import load_site_schemas
+from moltspider.parser import SiteSchemas
 from moltspider.consts import SiteSchemaKey as SSK, ArticleStatus, ArticleWeight
 from moltspider.utils import str_md5
 from sqlalchemy import select, and_, not_, func, between, text
@@ -116,7 +116,7 @@ def index():
     odd = False
     sb = []
 
-    site_schemas = load_site_schemas()
+    site_schemas = SiteSchemas
     try:
         sb.append('<h3 align="center">文库 - moltspider</h3>')
 
@@ -252,13 +252,14 @@ def article_index(iid):
 
             sb.append('<td id="a%s" width="%d%%">' % (r[ta.c.id], cellwidth))
             if is_preview:
+                # TODO: link to directly preview page from scrapy cache.
                 sb.append('<h4>%(id)s <a href="/%(id)s/">%(name)s</a></h4>' % r)
                 sb.append('<div style="word-wrap:break-word;">%s</div>' % (r[ta.c.desc] or ''))
                 render_rate_form(sb, aweight=r[ta.c.weight], astatus=r[ta.c.status], aid=r[ta.c.id], row=row-1)
                 if rs1:
                     sb.append('<ul>')
                     for r1 in rs1:
-                        sb.append('<li>%s</li>' % r1[tc.c.name])
+                        sb.append('<li><a href="/%s/%s">%s</a></li>' % (r[ta.c.id], r1[tc.c.id], r1[tc.c.name]))
                     rs1.close()
                     del rs1
                     sb.append('</ul>')
@@ -270,7 +271,8 @@ def article_index(iid):
 
             for fc, fo, fv in filters:
                 if fc:
-                    sb.append('<li>%s: %s</li>' % (fc, r[fc]))
+                    origin_url = SiteSchemas.get(r[ta.c.site]).get('url') + r[ta.c.url]
+                    sb.append('<li>%s: <a href="%s">%s</a></li>' % (fc, origin_url, r[fc]))
 
             sb.append('</td>')
             i += 1
@@ -281,6 +283,9 @@ def article_index(iid):
             sb.append('<tr style="background-color:#eee"><td> 还未上传 </td></tr>')
 
         sb.append('</table>')
+
+        render_pagination_and_filters(sb, return_link='/', return_text='返回首页')
+
         if last_updated_row:
             sb.append('''
             <script>
@@ -518,7 +523,7 @@ def render_pagination_and_filters(string_builder_list, return_link='/', return_t
     ta = Database.DB_t_article
     order_cols = (ta.c.id, ta.c.site, ta.c.weight, ta.c.status, ta.c.url, ta.c.category, ta.c.author,
                   ta.c.recommends, ta.c.update_on, ta.c.timestamp)
-    filter_cols = (ta.c.url, ta.c.name, ta.c.category, ta.c.author, ta.c.done, ta.c.recommends, ta.c.timestamp)
+    filter_cols = (ta.c.url, ta.c.name, ta.c.category, ta.c.update_on, ta.c.author, ta.c.done, ta.c.recommends, ta.c.timestamp)
     filter_operators = ('=', '>', '<', '>=', '<=', 'like', 'in')
 
     sb = string_builder_list
