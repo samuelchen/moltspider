@@ -575,7 +575,7 @@ def render_article_index_page(site=None, iid=None):
         stmt = stmt.where(between(ta.c.status, status_from, status_to))
         for fc, fo, fv in filters:
             if fc and fo and fv:
-                stmt = stmt.where(text(fc + ' ' + fo + ' "' + fv + '"'))
+                stmt = stmt.where(text(fc + ' ' + fo + " '" + fv + "'"))
         stmt = stmt.order_by(text(order1[1:] + ' desc' if order1.startswith('-') else order1),
                              text(order2[1:] + ' desc' if order2.startswith('-') else order2))
         stmt = stmt.offset(count_per_page * page).limit(count_per_page)
