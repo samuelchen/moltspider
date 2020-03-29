@@ -142,7 +142,7 @@ def args_get_count(**kwargs):
 
 def args_get_nocache(*args, **kwargs):
 
-    nocache = Args.NOCACHE.code in args
+    nocache = kwargs.get(Args.NOCACHE.code, False)
     if nocache:
         log.warning('Disable cache in this crawling.')
     return nocache
@@ -316,4 +316,3 @@ def process_field_with_plugin(data, schema_field, site, schema_name, schema_item
                 site, schema_name, schema_item_num, name, item))
             raise
     return d
-

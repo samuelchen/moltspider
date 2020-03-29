@@ -6,10 +6,10 @@ __author__ = 'samuel'
 import os
 import sys
 import base64
-from flask import Flask, request, render_template_string, make_response, url_for, redirect
+from flask import Flask, request, render_template_string, make_response, url_for, redirect, abort
 
 from moltspider.db import Database
-from moltspider.parser import SiteSchemas
+from moltspider.parser import SiteSchemas, plugin_source
 from moltspider.consts import SiteSchemaKey as SSK, ArticleStatus, ArticleWeight, Spiders
 from moltspider.utils import str_md5
 from sqlalchemy import select, and_, not_, func, between, text
@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 # logging.basicConfig({'level': logging.DEBUG})
 
 HASH_SITE_IN_URL = True
+allowed_names = ['127.0.0.1', 'localhost']
 
 base_path = os.path.dirname(__file__)
 static_base_symbol_link = os.path.join(base_path, 'temp' if HASH_SITE_IN_URL else '', 'static')
@@ -107,6 +108,7 @@ template_page = '''
 
 @app.route('/', methods=['GET'])
 def home():
+    handle_client_ip()
     context = {
         "encoding": "utf-8"
     }
@@ -199,6 +201,10 @@ def site_home(site):
 @app.route('/<int:aid>/', methods=['GET', 'POST'])
 def article_page(aid):
 
+    # TODO: add button to fix 'desc' and 'chapter' content. e.g. markdown, regex replace, encoding, zip/unzip ...
+
+    handle_client_ip()
+
     colspan = request.args.get('col', default=5, type=int)
 
     context = {
@@ -270,8 +276,150 @@ def article_page(aid):
     return resp
 
 
+@app.route('/m/a/<int:aid>', methods=['GET', 'POST'])
+def modify_article(aid):
+    handle_client_ip()
+
+    context = {
+        "encoding": 'utf-8'
+    }
+    db = Database()
+    ta = db.DB_t_article
+    colspan = 4
+    colwidth = 100 / colspan
+    colw1 = 0.3 * colwidth
+    colw2 = 0.7 * colwidth
+
+    # bgcolors = ['#eee', 'azure', 'cornsik', 'aliceblue', 'lightgreen', 'khaki']
+
+    modifible_cols = [ta.c.name, ta.c.author, ta.c.category, ta.c.length, ta.c.desc, ta.c.recommends, ta.c.favorites,
+                      ta.c.recommends_month]
+
+    # args
+    col_name = request.form.get('c', default="", type=str)
+    plugin_name = request.form.get('plug', default="", type=str)
+
+    plugin_args = []
+    for i in range(3):
+        plugin = request.form.get('pa' + str(i), default='', type=str)
+        if plugin:
+            plugin_args.append(plugin)
+
+    try:
+
+        # get article information
+        stmt = select(ta.c).where(ta.c.id == aid).order_by(ta.c.id)
+        rs = db.conn.execute(stmt)
+        ra = rs.fetchone()
+
+        # POST
+        preview_cols = {}
+        if request.method == 'POST':
+            if col_name:
+                if plugin_name:
+                    plugin = plugin_source.load_plugin(plugin_name)
+                    col_value_preview = plugin.perform(ra[col_name], *plugin_args)
+                    preview_cols[col_name] = col_value_preview
+
+        #  GET
+
+        i = 0
+        odd = True
+        sb = []
+
+        sb.append('<h3 align="center">修改 - %(name)s</h3>' % ra)
+        sb.append('<p align="center"><a href="/i/%(iid)s">返回索引</a></p>\n' % ra)
+
+        sb.append('<div align="center">')
+        sb.append('<form method="POST">')
+
+        # col plugin
+        sb.append('<label>对字段')
+        sb.append('<select name="c" style="width:100px" title="%s">' % col_name)
+        sb.append('<option value=""></option>')
+        for c in [] + modifible_cols:
+            sb.append('<option value="{0}" {1}>{0}</option>'.format(
+                c.name, 'selected' if c.name == col_name else ''))
+        sb.append('</select>')
+        sb.append('</label>')
+        sb.append('<label>使用插件')
+        sb.append('<select name="plug" style="width:100px" title="%s">' % plugin_name)
+        sb.append('<option value=""></option>')
+        for plugin in plugin_source.list_plugins():
+            sb.append('<option value="{0}" {1}>{0}</option>'.format(plugin, 'selected' if plugin == plugin_name else ''))
+        sb.append('</select>')
+        sb.append('</label>')
+
+        # plugin args
+        sb.append('<button type="button" onclick="add_arg()">add arg</button><span id="plugin_args"></span>')
+        sb.append("""<script>
+            var args_container = document.getElementById("plugin_args");
+            var arg_count = 0;
+            var plugin_args = {0};
+            function add_arg() {{
+                var label = document.createElement('label');
+                label.innerText = "参数" + arg_count;
+                label.title = "NOTICE: NO CHECK. use as your own RISK!!!";
+                var input = document.createElement('input');
+                input.name = "pa" + arg_count;
+                input.type = "text";
+                input.style = "width:70px";
+                input.value = plugin_args[arg_count] || '';
+                
+                label.appendChild(input);
+                args_container.appendChild(label);
+                arg_count ++;
+            }}
+            for (var i=0; i<{1}; i++) {{
+                add_arg();
+            }}
+        </script>
+        """.format(plugin_args, len(plugin_args)))
+        # for i in range(len(plugin_args)):
+        #     plugin_arg = plugin_args[i]
+        #     sb.append('<label title="NOTICE: NO CHECK. use as your own RISK!!!">参数%s:' % (i + 1))
+        #     sb.append('<input name="pa%s" type="text" style="width:70px" value="%s"></label>' % (i, plugin_arg))
+
+        sb.append('<button type="submit" style="background-color:yellow">Go</button>')
+
+        sb.append('</form>')
+        sb.append('</div>')
+
+        sb.append('<hr>')
+
+        # render columns
+        i = 0
+        sb.append('<table align="center" width="95%">')
+        for col in modifible_cols:
+            if i % colspan == 0:
+                sb.append('<tr colspan=%s>' % (colspan * 2))
+                odd = not odd
+            bgcolor = (['#eee', 'white'] if odd else ['white', '#eee'])[i % 2]
+            sb.append('<td style="background-color:%s" width="%s%%">%s</td>' % (bgcolor, colw1, col.name))
+            if col.name in preview_cols:
+                sb.append('<td style="background-color:%s;color:red;" width="%s%%">%s</td>' % (bgcolor, colw2, preview_cols[col.name]))
+            else:
+                sb.append('<td style="background-color:%s" width="%s%%">%s</td>' % (bgcolor, colw2, ra[col]))
+            i += 1
+            if i % colspan == 0:
+                sb.append('</tr>')
+        sb.append('</table>')
+
+        rs.close()
+        content = '\n'.join(sb)
+    except Exception as err:
+        content = '<h1>Error</h1><p class="error">' + str(err) + '</p>'
+
+    context['content'] = content
+    resp = make_response(render_template_string(template_page, **context))
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
+
+
 @app.route('/<int:aid>/<int:cid>/', methods=['GET', 'POST'])
 def chapter(aid, cid):
+    handle_client_ip()
+
     context = {
         "encoding": 'utf-8'
     }
@@ -377,6 +525,7 @@ def chapter(aid, cid):
 
 
 def render_article_index_page(site=None, iid=None):
+    handle_client_ip()
 
     page, count_per_page, colspan, is_preview, toc, weight_from, weight_to, status_from, status_to, order1, order2, filters = get_request_query_args()
 
@@ -468,7 +617,7 @@ def render_article_index_page(site=None, iid=None):
                     base64.standard_b64encode(r[ta.c.site].encode()).decode(),
                     base64.standard_b64encode(r[ta.c.url].encode()).decode(),
                     Spiders.TOC, r[ta.c.id]))
-                sb.append(' | <a href="%s">原文</a>' % (SiteSchemas.get(r[ta.c.site]).get(SSK.URL.code) + r[ta.c.url]))
+                sb.append(' | <a href="%s">原文</a>' % (SiteSchemas.get(r[ta.c.site], {}).get(SSK.URL.code, '') + r[ta.c.url]))
                 if rs1:
                     sb.append('<ul>')
                     for r1 in rs1:
@@ -520,6 +669,7 @@ def render_article_index_page(site=None, iid=None):
 
 @app.route('/cache/<string:site>/<string:url_path>/<string:spider_name>', methods=['GET', ])
 def cached_page(site, url_path, spider_name='toc'):
+    handle_client_ip()
 
     site = base64.standard_b64decode(site.encode()).decode()
     url_path = base64.standard_b64decode(url_path.encode()).decode()
@@ -750,7 +900,6 @@ def render_pagination_and_filters(string_builder_list, return_link='/', return_t
         sb.append('<option value="-{0}" {1}>{0}↓</option>'.format(c.name, 'selected' if '-'+c.name == order2 else ''))
     sb.append('</select>')
 
-
     sb.append('</form>')
     sb.append('</div>')
     # window.location = window.location.protocol + '//' + window.location.host +
@@ -805,6 +954,11 @@ def handle_rate_form(aid='', db=None):
         return row
 
 
+def handle_client_ip():
+    if request.remote_addr not in allowed_names:
+        abort(502)
+
+
 if __name__ == "__main__":
 
     try:
@@ -814,7 +968,12 @@ if __name__ == "__main__":
         port = int(port[1])
         if port <= 0 or port > 65535:
             port = 8080
+
+        if len(sys.argv) > 2:
+            allowed_names += sys.argv[2].split(',')
     except:
         host = '127.0.0.1'
         port = 8080
+
+    log.warning('Allowed names: %s' % allowed_names)
     app.run(host=host, port=port, debug=True)

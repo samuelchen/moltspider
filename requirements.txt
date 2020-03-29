@@ -27,7 +27,7 @@ beautifulsoup4 >= 4.8.2
 python-slugify[unidecode] >= 4.0.0
 
 # validate sites schema
-json-schema == 3.2.0
+jsonschema == 3.2.0
 
 # reader
 flask >= 1.1.1

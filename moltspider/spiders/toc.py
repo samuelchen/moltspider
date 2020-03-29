@@ -29,6 +29,10 @@ class TocSpider(MoltSpiderBase):
 
     def start_requests(self):
 
+        # TODO: mark_toc_done so that could filter out toc done articles. same as chatper.
+        # TODO: unlock article one by one ?
+        # TODO: add 'chapter_count', 'downloaded_chapter_count' to article table.
+
         ta = self.db.DB_t_article
         tl = self.db.DB_t_article_lock
 

@@ -148,7 +148,7 @@ class Database(object):
                          # set "table_alone" to "true" to enable it.
                          # most for novel, comic sites (many chapters per article)
                          # not for news site (1 or several chapters per article)
-                         Column('chapter_table', String(100), unique=True),
+                         Column('chapter_table', String(200), unique=True),
 
                          # last modified datetime of record
                          Column('timestamp', DateTime(timezone=True), default=get_timestamp, onupdate=get_timestamp),
