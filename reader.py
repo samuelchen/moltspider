@@ -59,7 +59,9 @@ template_page = '''
   }
 
   body, pre, p, div, li, input, select, span {
-      font-size: 0.9em;
+    font-size: 0.9em;
+    line-height: 150%;
+    letter-spacing: 0.2;
   }
   
   table {
